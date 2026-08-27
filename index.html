@@ -1,0 +1,2160 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>도서관 서가 정리 시뮬레이터 | K-소설 청구기호 맞추기</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=Nanum+Myeongjo:wght@400;700;800&family=Noto+Sans+KR:wght@400;500;600;700;800&family=Song+Myung&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-warm: #f7efe4;
+      --bg-dark-wood: #26170f;
+      --wood-frame: #462514;
+      --wood-shelf: #683b22;
+      --wood-shelf-light: #7e492b;
+      --wood-shadow: #1b0d07;
+      --wood-highlight: #965a36;
+      --brass-gold: #d4af37;
+      --paper-cream: #faf6ee;
+      --paper-label: #fcfbf7;
+      --text-main: #2b231d;
+      --text-muted: #726255;
+      --shadow-soft: 0 6px 20px rgba(0, 0, 0, 0.12);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    body {
+      background: #ebdcc8;
+      color: var(--text-main);
+      font-family: 'Noto Sans KR', sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow-x: hidden;
+      position: relative;
+    }
+
+    /* Ambient Library Background (Clear Books, Soft Lightened Tint) */
+    .bg-ambient-layer {
+      position: fixed;
+      inset: 0;
+      background-image: url('library-bg.png');
+      background-size: cover;
+      background-position: center 30%;
+      filter: brightness(1.02) contrast(0.95);
+      z-index: 0;
+      pointer-events: none;
+      opacity: 0.50;
+    }
+
+    .bg-overlay-tint {
+      position: fixed;
+      inset: 0;
+      background: radial-gradient(circle at 50% 30%, rgba(255, 251, 245, 0.35) 0%, rgba(236, 219, 200, 0.55) 100%);
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    /* Header */
+    header {
+      background: linear-gradient(180deg, #381f13 0%, #26140b 100%);
+      color: #faeedd;
+      padding: 8px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      box-shadow: 0 3px 12px rgba(0, 0, 0, 0.3);
+      border-bottom: 2px solid var(--brass-gold);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .brand-icon {
+      font-size: 22px;
+      filter: drop-shadow(0 2px 4px rgba(0,0,0,0.4));
+    }
+
+    .brand h1 {
+      font-family: 'Gowun Batang', serif;
+      font-size: 1.2rem;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      color: #fff4e3;
+    }
+
+    .brand .subtitle {
+      font-size: 0.7rem;
+      color: #d1bba4;
+    }
+
+    .header-controls {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      background: linear-gradient(180deg, #57331e 0%, #402313 100%);
+      color: #f7ede1;
+      border: 1px solid #7d4d2e;
+      padding: 5px 12px;
+      border-radius: 5px;
+      font-size: 0.82rem;
+      font-family: 'Noto Sans KR', sans-serif;
+      font-weight: 500;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.25);
+      transition: all 0.15s ease;
+    }
+
+    .btn:hover {
+      background: linear-gradient(180deg, #6c3f25 0%, #4e2b17 100%);
+      border-color: var(--brass-gold);
+      color: #ffffff;
+      transform: translateY(-1px);
+    }
+
+    .btn-gold {
+      background: linear-gradient(180deg, #c99e32 0%, #9e781e 100%);
+      border-color: #ffd875;
+      color: #1a1005;
+      font-weight: 700;
+    }
+
+    .btn-gold:hover {
+      background: linear-gradient(180deg, #ddb13d 0%, #b28824 100%);
+      color: #000;
+    }
+
+    .difficulty-select {
+      background: #201007;
+      color: #f0dfcb;
+      border: 1px solid #6b3e24;
+      padding: 4px 8px;
+      border-radius: 5px;
+      font-size: 0.8rem;
+      outline: none;
+      cursor: pointer;
+    }
+
+    /* Main Container (Vertically & Horizontally Balanced Center) */
+    main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      padding: 12px 18px;
+      max-width: 1460px;
+      width: 100%;
+      margin: auto auto;
+      gap: 10px;
+      position: relative;
+      z-index: 2;
+    }
+
+    /* Status & Controls Bar */
+    .status-panel {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: rgba(255, 255, 255, 0.88);
+      backdrop-filter: blur(8px);
+      padding: 7px 16px;
+      border-radius: 8px;
+      border: 1px solid rgba(139, 90, 43, 0.2);
+      box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .status-info {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      font-size: 0.86rem;
+    }
+
+    .status-badge {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      color: var(--text-main);
+      font-weight: 600;
+    }
+
+    .status-badge span.val {
+      background: #4a2818;
+      color: #fcefdc;
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-size: 0.82rem;
+    }
+
+    /* Selection Guidance Notice */
+    .selection-notice {
+      display: none;
+      background: #fff4d6;
+      border: 1px solid #e2b13c;
+      color: #724b00;
+      padding: 6px 14px;
+      border-radius: 6px;
+      font-size: 0.84rem;
+      font-weight: 600;
+      align-items: center;
+      justify-content: space-between;
+      animation: fadeIn 0.2s ease;
+      box-shadow: 0 2px 6px rgba(226, 177, 60, 0.2);
+    }
+
+    .selection-notice.active {
+      display: flex;
+    }
+
+    /* Bookshelf Section (Edge-to-Edge Pure Wooden Shelf) */
+    .bookshelf-stage {
+      width: 100%;
+      border-radius: 8px;
+      overflow: hidden;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      position: relative;
+      background: transparent;
+      padding: 0;
+    }
+
+    .bookshelf-scaler {
+      width: 100%;
+      margin: 0 auto;
+    }
+
+    /* Pure Wooden Shelf Cabinet */
+    .bookshelf-cabinet {
+      background: #2a150b;
+      border: 10px solid #4a2818;
+      border-bottom: 20px solid #381b0d;
+      border-radius: 6px;
+      box-shadow: 
+        0 8px 25px rgba(0,0,0,0.6),
+        inset 0 0 20px rgba(0,0,0,0.9),
+        0 0 0 2px #754427;
+      position: relative;
+      padding: 4px 10px;
+      width: 100%;
+      background-image: 
+        linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+      background-size: 20px 20px;
+    }
+
+    /* Single Shelf Row (With generous top headroom) */
+    .single-shelf-row {
+      background: #1e1008;
+      box-shadow: inset 0 8px 18px rgba(0, 0, 0, 0.85);
+      border-radius: 4px;
+      min-height: 310px;
+      position: relative;
+      display: flex;
+      align-items: flex-end;
+      padding: 24px 14px 0 14px;
+      border-bottom: 12px solid #5a321d;
+      cursor: pointer;
+      transition: background 0.15s, box-shadow 0.15s;
+    }
+
+    .single-shelf-row:hover {
+      background: #25140a;
+    }
+
+    .single-shelf-row.target-active {
+      background: #2f190c;
+      box-shadow: inset 0 0 18px rgba(255, 215, 100, 0.35);
+    }
+
+    /* Wooden shelf plank visual */
+    .single-shelf-row::after {
+      content: '';
+      position: absolute;
+      left: -6px;
+      right: -6px;
+      bottom: -12px;
+      height: 12px;
+      background: linear-gradient(180deg, #7c482a 0%, #522d17 70%, #30170a 100%);
+      box-shadow: 0 4px 10px rgba(0,0,0,0.6);
+      border-top: 1px solid #9e5e39;
+      border-radius: 2px;
+      z-index: 3;
+    }
+
+    .single-shelf-row::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 30px;
+      background: linear-gradient(180deg, rgba(0, 0, 0, 0.75) 0%, transparent 100%);
+      pointer-events: none;
+      z-index: 10;
+    }
+
+    .shelf-header-tag {
+      position: absolute;
+      top: 6px;
+      left: 12px;
+      font-size: 0.74rem;
+      font-family: 'Gowun Batang', serif;
+      color: #baa08b;
+      letter-spacing: 1px;
+      font-weight: 700;
+      z-index: 12;
+      opacity: 0.9;
+      pointer-events: none;
+    }
+
+    /* Books Container on Single Shelf */
+    .shelf-books-container {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: flex-end;
+      gap: 5px;
+      position: relative;
+      z-index: 4;
+      min-height: 295px;
+      padding-bottom: 2px;
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+
+    .shelf-slot-hint {
+      flex: 1;
+      height: 260px;
+      border: 2px dashed rgba(212, 175, 55, 0.35);
+      border-radius: 4px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      color: #beaa93;
+      font-size: 0.9rem;
+      gap: 5px;
+      background: rgba(255, 255, 255, 0.02);
+      transition: all 0.2s ease;
+      margin: 6px;
+      pointer-events: none;
+    }
+
+    .single-shelf-row.drag-over .shelf-slot-hint,
+    .single-shelf-row.target-active .shelf-slot-hint {
+      border-color: var(--brass-gold);
+      background: rgba(212, 175, 55, 0.15);
+      color: #ffd875;
+    }
+
+    /* Insertion Indicator when hovering between books */
+    .book-spine.insert-target-before {
+      border-left: 5px solid #ffd875 !important;
+      box-shadow: -6px 0 16px #ffd875, -2px 0 5px rgba(0,0,0,0.5) !important;
+      transform: translateY(-8px) scale(1.02);
+    }
+
+    .book-spine.insert-target-after {
+      border-right: 5px solid #ffd875 !important;
+      box-shadow: 6px 0 16px #ffd875, 2px 0 5px rgba(0,0,0,0.5) !important;
+      transform: translateY(-8px) scale(1.02);
+    }
+
+    /* Book Spine Component */
+    .book-spine {
+      position: relative;
+      border-radius: 3px 3px 0 0;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 4px 6px 4px;
+      box-shadow: 
+        -2px 0 5px rgba(0,0,0,0.45),
+        2px 0 5px rgba(255,255,255,0.08),
+        inset 2px 0 4px rgba(255,255,255,0.18),
+        inset -2px 0 4px rgba(0,0,0,0.45);
+      transition: transform 0.15s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.15s;
+      flex-shrink: 0;
+      z-index: 5;
+      min-width: 38px;
+    }
+
+    .book-spine:hover {
+      transform: translateY(-8px) scale(1.02);
+      box-shadow: 
+        0 12px 20px rgba(0, 0, 0, 0.7),
+        0 0 12px rgba(255, 215, 100, 0.6);
+      z-index: 30 !important;
+    }
+
+    .book-spine.is-selected {
+      outline: 3px solid #ffcc00;
+      outline-offset: 2px;
+      transform: translateY(-12px) scale(1.04);
+      box-shadow: 
+        0 16px 28px rgba(0, 0, 0, 0.8),
+        0 0 20px rgba(255, 204, 0, 0.9);
+      z-index: 35 !important;
+      animation: selectPulse 1.5s infinite alternate;
+    }
+
+    @keyframes selectPulse {
+      0% { box-shadow: 0 0 10px rgba(255, 204, 0, 0.6); }
+      100% { box-shadow: 0 0 22px rgba(255, 204, 0, 1); }
+    }
+
+    .book-spine.dragging {
+      opacity: 0.35;
+      transform: scale(0.95);
+      cursor: grabbing;
+    }
+
+    /* Spine Texture Ribs */
+    .spine-ribs {
+      position: absolute;
+      top: 12%;
+      bottom: 35%;
+      left: 0;
+      right: 0;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-around;
+      pointer-events: none;
+      opacity: 0.35;
+    }
+
+    .spine-rib {
+      height: 2px;
+      background: rgba(255, 255, 255, 0.7);
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+    }
+
+    /* Spine Text Container */
+    .spine-text-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      gap: 6px;
+      width: 100%;
+      overflow: hidden;
+      flex: 1;
+      padding-top: 4px;
+      pointer-events: none;
+    }
+
+    .spine-title {
+      writing-mode: vertical-rl;
+      text-orientation: mixed;
+      white-space: nowrap;
+      font-family: 'Gowun Batang', 'Nanum Myeongjo', serif;
+      font-size: 0.82rem;
+      letter-spacing: 1.5px;
+      line-height: 1;
+      text-shadow: 0 1px 2px rgba(0,0,0,0.9);
+      max-height: 145px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      font-weight: 700;
+      color: #fff;
+    }
+
+    .spine-author {
+      writing-mode: vertical-rl;
+      text-orientation: mixed;
+      white-space: nowrap;
+      font-size: 0.68rem;
+      letter-spacing: 1px;
+      opacity: 0.9;
+      color: #ebd8c2;
+      max-height: 60px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      margin-top: 4px;
+    }
+
+    /* Official Library Call Number Sticker */
+    .call-number-sticker {
+      background: var(--paper-label);
+      color: #111;
+      border: 1px solid #1a1a1a;
+      border-radius: 2px;
+      padding: 3px 1px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans KR", sans-serif;
+      text-align: center;
+      width: 96%;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.5);
+      z-index: 3;
+      margin-top: auto;
+      box-sizing: border-box;
+      pointer-events: none;
+    }
+
+    .call-number-sticker .class-no {
+      font-size: 0.70rem;
+      color: #0b3c68;
+      border-bottom: 1px solid #ccc;
+      padding-bottom: 1px;
+      margin-bottom: 1px;
+      font-weight: 800;
+      letter-spacing: -0.4px;
+      white-space: nowrap;
+      line-height: 1.1;
+    }
+
+    .call-number-sticker .author-code {
+      font-size: 0.68rem;
+      color: #111;
+      font-weight: 700;
+      letter-spacing: -0.4px;
+      white-space: nowrap;
+      line-height: 1.1;
+    }
+
+    .call-number-sticker .vol-no {
+      font-size: 0.62rem;
+      color: #b33939;
+      font-weight: 800;
+      letter-spacing: -0.2px;
+      white-space: nowrap;
+      line-height: 1;
+      margin-top: 1px;
+    }
+
+    /* Bottom Staging Area / Book Cart / Tray (Expanded Room, No Clipping on Select) */
+    .staging-area {
+      background: linear-gradient(180deg, #dfc6aa 0%, #cbb193 100%);
+      border: 3px solid #8e6545;
+      border-radius: 8px;
+      padding: 10px 16px 12px 16px;
+      box-shadow: var(--shadow-soft);
+      position: relative;
+    }
+
+    .staging-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 6px;
+      border-bottom: 1px solid #b89775;
+      padding-bottom: 4px;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .staging-title {
+      font-family: 'Gowun Batang', serif;
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: #3b2011;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .staging-tip {
+      font-size: 0.78rem;
+      color: #553b26;
+    }
+
+    /* Enlarged Tray with 32px top headroom so lifted/scaled books never clip */
+    .tray-books-container {
+      background: #472615;
+      border-radius: 6px;
+      padding: 32px 16px 10px 16px;
+      min-height: 325px;
+      display: flex;
+      align-items: flex-end;
+      gap: 8px;
+      overflow-x: auto;
+      box-shadow: inset 0 6px 14px rgba(0,0,0,0.6);
+      border-bottom: 8px solid #33190d;
+      scrollbar-width: thin;
+      scrollbar-color: #8c5b37 #33190d;
+    }
+
+    .tray-books-container::-webkit-scrollbar {
+      height: 8px;
+    }
+
+    .tray-books-container::-webkit-scrollbar-thumb {
+      background: #8c5b37;
+      border-radius: 4px;
+    }
+
+    .tray-empty-msg {
+      margin: auto;
+      color: #d1b89d;
+      font-size: 0.92rem;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-family: 'Gowun Batang', serif;
+      padding: 14px;
+    }
+
+    /* Draggable & Proportional Corner-Resizable Floating Book Inspector Window */
+    .book-inspector-card {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      left: auto;
+      width: 360px;
+      background: #fbf7ee;
+      border: 3px solid #8e623f;
+      border-radius: 12px;
+      box-shadow: 0 16px 45px rgba(0,0,0,0.45);
+      z-index: 150;
+      display: none;
+      animation: fadeIn 0.2s ease;
+      overflow: hidden;
+      touch-action: none;
+      --scale: 1.0;
+    }
+
+    .inspector-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 2px solid #e0d0bd;
+      cursor: move;
+      background: #f4e8d8;
+      padding: 8px 12px;
+    }
+
+    .inspector-drag-title {
+      font-family: 'Gowun Batang', serif;
+      font-size: calc(0.88rem * var(--scale));
+      font-weight: 700;
+      color: #4a2818;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .btn-close-insp {
+      background: #8e3b2e;
+      color: #fff;
+      border: none;
+      border-radius: 4px;
+      padding: 2px 7px;
+      font-size: 0.8rem;
+      cursor: pointer;
+      font-weight: bold;
+    }
+
+    .inspector-body {
+      padding: calc(14px * var(--scale));
+      display: flex;
+      flex-direction: column;
+      gap: calc(8px * var(--scale));
+    }
+
+    .inspector-title {
+      font-family: 'Gowun Batang', serif;
+      font-size: calc(1.22rem * var(--scale));
+      font-weight: 700;
+      color: #2b170c;
+      line-height: 1.25;
+    }
+
+    .inspector-author {
+      font-size: calc(0.88rem * var(--scale));
+      color: #684f3e;
+      font-weight: 500;
+    }
+
+    .inspector-badge-box {
+      background: #f1e4d3;
+      border: 1px solid #d4be9e;
+      border-radius: 8px;
+      padding: calc(8px * var(--scale));
+      margin: calc(4px * var(--scale)) 0;
+      display: flex;
+      justify-content: space-around;
+      text-align: center;
+    }
+
+    .inspector-badge-item .lbl {
+      font-size: calc(0.7rem * var(--scale));
+      color: #795d46;
+      display: block;
+      margin-bottom: 2px;
+      font-weight: 600;
+    }
+
+    .inspector-badge-item .val {
+      font-size: calc(1rem * var(--scale));
+      font-weight: bold;
+      color: #1e1109;
+    }
+
+    .inspector-desc {
+      font-size: calc(0.85rem * var(--scale));
+      color: #4a3a2f;
+      line-height: 1.45;
+      background: #fff;
+      padding: calc(8px * var(--scale)) calc(12px * var(--scale));
+      border-radius: 6px;
+      border-left: 4px solid #b87843;
+      font-style: italic;
+    }
+
+    /* Resizer Drag Corner Handle */
+    .inspector-resize-handle {
+      position: absolute;
+      right: 0;
+      bottom: 0;
+      width: 24px;
+      height: 24px;
+      cursor: nwse-resize;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      color: #8e623f;
+      user-select: none;
+      z-index: 10;
+      background: linear-gradient(135deg, transparent 50%, #e8d5be 50%);
+      border-radius: 0 0 9px 0;
+    }
+
+    /* Modal Windows */
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(20, 10, 5, 0.65);
+      backdrop-filter: blur(4px);
+      z-index: 200;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.25s ease;
+    }
+
+    .modal-backdrop.active {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .modal-card {
+      background: #faf4e8;
+      border: 3px solid #734326;
+      border-radius: 14px;
+      max-width: 620px;
+      width: 100%;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+      padding: 24px 28px;
+      transform: scale(0.92);
+      transition: transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
+      max-height: 88vh;
+      overflow-y: auto;
+      position: relative;
+    }
+
+    .modal-backdrop.active .modal-card {
+      transform: scale(1);
+    }
+
+    .modal-title {
+      font-family: 'Gowun Batang', serif;
+      font-size: 1.4rem;
+      font-weight: 700;
+      color: #3b1d0e;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      border-bottom: 2px solid #dfcfbc;
+      padding-bottom: 12px;
+      margin-bottom: 16px;
+    }
+
+    .result-score-banner {
+      padding: 14px;
+      border-radius: 8px;
+      text-align: center;
+      margin-bottom: 18px;
+      font-weight: bold;
+    }
+
+    .score-perfect {
+      background: #e4f4e9;
+      border: 2px solid #489b65;
+      color: #1e5932;
+    }
+
+    .score-wrong {
+      background: #fdf0e6;
+      border: 2px solid #d97838;
+      color: #8c410c;
+    }
+
+    .comparison-list {
+      display: flex;
+      flex-direction: column;
+      gap: 7px;
+      margin-bottom: 18px;
+    }
+
+    .comparison-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 12px;
+      border-radius: 6px;
+      background: #fff;
+      border: 1px solid #e2d3c2;
+      font-size: 0.86rem;
+    }
+
+    .comparison-item.is-correct {
+      border-left: 5px solid #3b8e57;
+    }
+
+    .comparison-item.is-incorrect {
+      border-left: 5px solid #d14949;
+      background: #fff8f8;
+    }
+
+    .comparison-badge {
+      font-family: monospace;
+      font-weight: bold;
+      background: #2b180d;
+      color: #ffd875;
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-size: 0.8rem;
+    }
+
+    .modal-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+      margin-top: 18px;
+      border-top: 1px solid #e4d7c7;
+      padding-top: 14px;
+    }
+
+    /* KDC Guide Box */
+    .guide-section {
+      margin-bottom: 14px;
+      background: #fff;
+      padding: 12px 16px;
+      border-radius: 8px;
+      border: 1px solid #ebd9c5;
+    }
+
+    .guide-section h4 {
+      color: #5a2e16;
+      margin-bottom: 5px;
+      font-size: 0.92rem;
+    }
+
+    .guide-section p, .guide-section li {
+      font-size: 0.84rem;
+      color: #4f4035;
+      line-height: 1.5;
+    }
+
+    .guide-section ul {
+      margin-left: 20px;
+      margin-top: 4px;
+    }
+
+    /* Animations */
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes pulseGold {
+      0% { box-shadow: 0 0 0 0 rgba(212, 175, 55, 0.6); }
+      70% { box-shadow: 0 0 0 12px rgba(212, 175, 55, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(212, 175, 55, 0); }
+    }
+
+    .pulse {
+      animation: pulseGold 2s infinite;
+    }
+
+    /* Responsive */
+    @media (max-width: 900px) {
+      header {
+        flex-direction: column;
+        gap: 8px;
+        align-items: stretch;
+      }
+      .header-controls {
+        justify-content: space-between;
+      }
+      .book-inspector-card {
+        bottom: 10px;
+        left: 10px;
+        right: 10px;
+        width: auto;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Ambient Blurred Library Background -->
+  <div class="bg-ambient-layer"></div>
+  <div class="bg-overlay-tint"></div>
+
+  <!-- Header -->
+  <header>
+    <div class="brand">
+      <div class="brand-icon">📚</div>
+      <div>
+        <h1>도서관 서가 정리 시뮬레이터</h1>
+        <div class="subtitle">한국 대표 소설 100선 · KDC 청구기호 정렬 학습 & 퍼즐</div>
+      </div>
+    </div>
+    
+    <div class="header-controls">
+      <select id="difficultySelect" class="difficulty-select" title="정리할 도서 권수 선택">
+        <option value="5">🌱 초급 (5권)</option>
+        <option value="8" selected>🌿 중급 (8권)</option>
+        <option value="12">🌲 고급 (12권)</option>
+        <option value="16">👑 사서 마스터 (16권)</option>
+      </select>
+
+      <button id="btnNewGame" class="btn">
+        <span>🔄 새 도서 불러오기</span>
+      </button>
+
+      <button id="btnSoundToggle" class="btn" title="효과음 켜기/끄기">
+        <span id="soundIcon">🔊 소리 켜짐</span>
+      </button>
+
+      <button id="btnGuide" class="btn">
+        <span>📖 청구기호 읽는 법</span>
+      </button>
+
+      <button id="btnCatalog" class="btn">
+        <span>📑 100선 도서관 목록</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Content (Centered in viewport) -->
+  <main>
+    <!-- Status & Action Bar -->
+    <div class="status-panel">
+      <div class="status-info">
+        <div class="status-badge">
+          <span>진행 상태:</span>
+          <span id="progressText" class="val">0 / 8 권 정리됨</span>
+        </div>
+        <div class="status-badge">
+          <span>남은 대기 도서:</span>
+          <span id="trayCountText" class="val">8권</span>
+        </div>
+      </div>
+
+      <div style="display: flex; gap: 8px; align-items: center;">
+        <button id="btnAddBook" class="btn" style="background: linear-gradient(180deg, #2d5a37 0%, #1e3f26 100%); border-color: #488a57;" title="서가 수용 범위 내에서 트롤리에 새 책을 추가합니다">
+          <span>➕ 책 추가하기</span>
+        </button>
+        <button id="btnSortHint" class="btn" style="font-size: 0.8rem;" title="청구기호 힌트 확인">💡 정렬 힌트</button>
+        <button id="btnVerify" class="btn btn-gold pulse">
+          <span>✨ 정리 검사하기</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Active Selection Instruction Notice -->
+    <div id="selectionNotice" class="selection-notice">
+      <span id="selectionNoticeText">📌 책을 클릭하여 선택했습니다. 서가의 원하는 책 사이를 클릭하면 그 위치에 들어갑니다.</span>
+      <button id="btnCancelSelection" style="background: none; border: none; font-size: 0.85rem; font-weight: bold; cursor: pointer; color: #724b00;">선택 취소 ✕</button>
+    </div>
+
+    <!-- Pure Wooden Bookshelf (Edge-to-Edge) -->
+    <div class="bookshelf-stage" id="bookshelfStage">
+      <div class="bookshelf-scaler" id="bookshelfScaler">
+        <div class="bookshelf-cabinet">
+          <div class="single-shelf-row" id="singleShelfRow">
+            <span class="shelf-header-tag">📖 한국 문학 서가 (청구기호 순서대로 정렬)</span>
+            <div class="shelf-books-container" id="shelfBooksContainer">
+              <!-- Sorted books go here -->
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bottom Staging Area (Book Cart / Trolley) -->
+    <div class="staging-area" id="stagingArea">
+      <div class="staging-header">
+        <div class="staging-title">
+          <span>🛒 반납 도서 트롤리 (정리 대기 서가)</span>
+        </div>
+        <div class="staging-tip">
+          💡 <strong>책을 클릭</strong>하고 <strong>서가의 책 사이를 클릭</strong>하면 그 자리에 꽂힙니다. (드래그도 가능)
+        </div>
+      </div>
+
+      <div class="tray-books-container" id="trayBooksContainer">
+        <!-- Unsorted books rendered here with generous headroom -->
+      </div>
+    </div>
+  </main>
+
+  <!-- Draggable & Proportional Corner-Resizable Floating Book Inspector Window -->
+  <div class="book-inspector-card" id="bookInspectorCard">
+    <div class="inspector-header" id="inspectorHeader" title="이곳을 잡고 드래그하여 도서 정보창을 이동하세요">
+      <div class="inspector-drag-title">
+        <span>📚 도서 상세 정보</span>
+      </div>
+      <button class="btn-close-insp" id="btnCloseInsp" title="닫기">✕</button>
+    </div>
+    <div class="inspector-body">
+      <div class="inspector-title" id="inspTitle">책 제목</div>
+      <div class="inspector-author" id="inspAuthor">저자명 · 연도</div>
+      <div class="inspector-badge-box">
+        <div class="inspector-badge-item">
+          <span class="lbl">분류기호(KDC)</span>
+          <span class="val" id="inspClassNo" style="color: #0c4d82;">813.6</span>
+        </div>
+        <div class="inspector-badge-item">
+          <span class="lbl">저자기호</span>
+          <span class="val" id="inspAuthorCode">한12ㅊ</span>
+        </div>
+        <div class="inspector-badge-item">
+          <span class="lbl">권차/복본</span>
+          <span class="val" id="inspVol" style="color: #b33939;">v.1</span>
+        </div>
+      </div>
+      <div class="inspector-desc" id="inspDesc">책 소개 문구 및 명대사</div>
+    </div>
+    <!-- Resize Grip Handle -->
+    <div class="inspector-resize-handle" id="inspectorResizeHandle" title="모서리를 드래그하여 정보창을 확대/축소하세요">⇲</div>
+  </div>
+
+  <!-- Verification Result Modal -->
+  <div class="modal-backdrop" id="resultModal">
+    <div class="modal-card">
+      <div class="modal-title" id="resultModalTitle">
+        <span>📊 서가 정리 결과 검사</span>
+      </div>
+      
+      <div class="result-score-banner" id="resultScoreBanner">
+        <!-- Perfect or Mistakes banner -->
+      </div>
+
+      <h4 style="font-size: 0.95rem; margin-bottom: 8px; color: #4a2818;">📋 서가 배치 도서 검사 결과:</h4>
+      <div class="comparison-list" id="comparisonList">
+        <!-- Books comparison rows -->
+      </div>
+
+      <div class="modal-actions">
+        <button id="btnRetryCurrent" class="btn">다시 정리해보기</button>
+        <button id="btnNextRound" class="btn btn-gold">다음 라운드 (새 도서)</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Call Number Guide Modal -->
+  <div class="modal-backdrop" id="guideModal">
+    <div class="modal-card">
+      <div class="modal-title">
+        <span>📖 도서관 청구기호(KDC) 정렬 비법 가이드</span>
+      </div>
+
+      <div class="guide-section">
+        <h4>1. 분류기호 정렬 (한국십진분류법 - KDC)</h4>
+        <p>분류기호는 <strong>소수점 십진 방식</strong>으로 작은 번호부터 정렬합니다.</p>
+        <ul>
+          <li><code>813.5</code> (근대소설) &lt; <code>813.6</code> (현대소설) &lt; <code>813.62</code> &lt; <code>813.7</code> (2000년대 이후 소설)</li>
+          <li><em>주의:</em> 813.62는 813.6보다 뒤이고 813.7보다 앞입니다.</li>
+        </ul>
+      </div>
+
+      <div class="guide-section">
+        <h4>2. 저자기호 정렬 (엘로드/장서각 방식)</h4>
+        <p>분류기호가 같으면 저자기호의 <strong>저자 성씨(가나다순) → 번호(숫자 오름차순) → 도서명 초성(가나다순)</strong>으로 정렬합니다.</p>
+        <ul>
+          <li><code>김19ㄴ</code> (김금희) &lt; <code>김64ㅅ</code> (김영하) &lt; <code>김98ㅋ</code> (김훈) &lt; <code>박14ㅌ</code> (박경리) &lt; <code>한12ㅊ</code> (한강)</li>
+        </ul>
+      </div>
+
+      <div class="guide-section">
+        <h4>3. 권차(Volume) 및 복본(Copy) 기호</h4>
+        <p>분류기호와 저자기호가 모두 같다면 권차 순서대로 정렬합니다.</p>
+        <ul>
+          <li>단권도서(권차 없음) &lt; <code>v.1</code> (1권) &lt; <code>v.2</code> (2권) &lt; <code>v.3</code> (3권)</li>
+        </ul>
+      </div>
+
+      <div class="modal-actions">
+        <button class="btn btn-gold" onclick="document.getElementById('guideModal').classList.remove('active')">이해했어요! 서가 정리하기</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 100 Korean Novels Catalog Modal -->
+  <div class="modal-backdrop" id="catalogModal">
+    <div class="modal-card" style="max-width: 780px;">
+      <div class="modal-title">
+        <span>📑 소장 한국 대표 소설 100선 목록</span>
+      </div>
+      <div style="margin-bottom: 12px; display: flex; gap: 8px;">
+        <input type="text" id="catalogSearch" placeholder="도서명 또는 저자 검색..." style="flex: 1; padding: 8px 12px; border-radius: 6px; border: 1px solid #cca887; font-size: 0.9rem; outline: none;">
+      </div>
+      <div id="catalogListContainer" style="max-height: 420px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px;">
+        <!-- 100 books list rendered here -->
+      </div>
+      <div class="modal-actions">
+        <button class="btn" onclick="document.getElementById('catalogModal').classList.remove('active')">닫기</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    /* ==========================================================================
+       1. DATASET: 100 Curated Korean Masterpiece Novels
+       ========================================================================== */
+    const NOVELS_DATASET = [
+      { id: 1, title: "난장이가 쏘아올린 작은 공", author: "조세희", year: 1978, classNo: "813.6", authorCode: "조53ㄴ", vol: "", summary: "1970년대 산업화의 그늘과 도시 빈민의 아픔을 서정적이고 냉철하게 그려낸 연작소설", color: "#54382b", height: 245, width: 44 },
+      { id: 2, title: "광장", author: "최인훈", year: 1960, classNo: "813.6", authorCode: "최67ㄱ", vol: "", summary: "밀실과 광장 사이에서 이데올로기의 갈등과 실존을 탐색한 한국 현대소설의 영원한 고전", color: "#36454f", height: 250, width: 46 },
+      { id: 3, title: "삼포 가는 길", author: "황석영", year: 1973, classNo: "813.6", authorCode: "황53ㅅ", vol: "", summary: "산업화로 고향을 잃어버린 세 부초 같은 영혼들의 따뜻하고 쓸쓸한 여정", color: "#6e473b", height: 240, width: 42 },
+      { id: 4, title: "손님", author: "황석영", year: 2001, classNo: "813.6", authorCode: "황53ㅅㅗ", vol: "", summary: "황해도 신천 학살 사건을 진령굿의 구조로 풀어낸 민족의 화해와 진혼의 서사", color: "#783f3f", height: 255, width: 48 },
+      { id: 5, title: "철도원 삼대", author: "황석영", year: 2020, classNo: "813.6", authorCode: "황53ㅊ", vol: "", summary: "철도 노동자 3대의 백년 역사를 통해 조망한 한국 근현대 노동과 민중의 역사", color: "#3d5a45", height: 265, width: 52 },
+      { id: 6, title: "토지 (1권)", author: "박경리", year: 1969, classNo: "813.6", authorCode: "박14ㅌ", vol: "v.1", summary: "평사리 최참판댁의 몰락과 부활을 통해 한국 근현대사의 숨결을 담아낸 필생의 대하소설", color: "#593122", height: 270, width: 50 },
+      { id: 7, title: "토지 (2권)", author: "박경리", year: 1969, classNo: "813.6", authorCode: "박14ㅌ", vol: "v.2", summary: "간도로 터전을 옮긴 서희와 길상의 파란만장한 민족적 서사와 운명", color: "#593122", height: 270, width: 50 },
+      { id: 8, title: "토지 (3권)", author: "박경리", year: 1970, classNo: "813.6", authorCode: "박14ㅌ", vol: "v.3", summary: "일제강점기 억압과 고난 속에서 피어나는 민중의 끈질긴 생명력", color: "#593122", height: 270, width: 50 },
+      { id: 9, title: "김약국의 딸들", author: "박경리", year: 1962, classNo: "813.6", authorCode: "박14ㄱ", vol: "", summary: "통영 바닷가를 배경으로 펼쳐지는 한 가족의 비극적 운명과 욕망의 연대기", color: "#483c46", height: 248, width: 45 },
+      { id: 10, title: "채식주의자", author: "한강", year: 2007, classNo: "813.6", authorCode: "한12ㅊ", vol: "", summary: "인간의 폭력성을 거부하고 식물이 되고자 했던 영혜의 처절하고 아름다운 이야기 (맨부커 인터내셔널 수상작)", color: "#2f4f4f", height: 245, width: 44 },
+      { id: 11, title: "소년이 온다", author: "한강", year: 2014, classNo: "813.6", authorCode: "한12ㅅ", vol: "", summary: "1980년 5월 광주의 숨결과 남겨진 자들의 고통을 애도하는 숭고한 문학적 증언", color: "#3d405b", height: 248, width: 45 },
+      { id: 12, title: "작별하지 않는다", author: "한강", year: 2021, classNo: "813.6", authorCode: "한12ㅈ", vol: "", summary: "제주 4·3의 비극을 눈과 불꽃, 지극한 사랑의 기억으로 복원한 깊은 울림의 소설 (메디치상 수상)", color: "#2e3842", height: 255, width: 46 },
+      { id: 13, title: "흰", author: "한강", year: 2016, classNo: "813.6", authorCode: "한12ㅎ", vol: "", summary: "세상에 존재하는 모든 흰 것들에 바치는 65편의 시적 산문과 소설적 사유", color: "#8a817c", height: 238, width: 40 },
+      { id: 14, title: "아몬드", author: "손원평", year: 2017, classNo: "813.7", authorCode: "손67ㅇ", vol: "", summary: "감정을 느끼지 못하는 소년 윤재와 상처투성이 소년 곤이가 나누는 특별한 교감과 성장", color: "#c08552", height: 248, width: 46 },
+      { id: 15, title: "서른의 반격", author: "손원평", year: 2017, classNo: "813.7", authorCode: "손67ㅅ", vol: "", summary: "불안한 청춘들이 권위에 맞서 펼치는 작고 유쾌한 일상의 반격", color: "#7f5539", height: 244, width: 44 },
+      { id: 16, title: "불편한 편의점 (1권)", author: "김호연", year: 2021, classNo: "813.7", authorCode: "김95ㅂ", vol: "v.1", summary: "청파동 골목 모퉁이 ALWAYS 편의점에서 펼쳐지는 이웃들의 따스한 위로와 힐링", color: "#457b9d", height: 252, width: 48 },
+      { id: 17, title: "불편한 편의점 (2권)", author: "김호연", year: 2022, classNo: "813.7", authorCode: "김95ㅂ", vol: "v.2", summary: "힘겨운 시대를 살아가는 모든 이들에게 건네는 또 한 번의 따뜻한 온기와 야식", color: "#1d3557", height: 252, width: 48 },
+      { id: 18, title: "구의 증명", author: "최진영", year: 2015, classNo: "813.7", authorCode: "최74ㄱ", vol: "", summary: "상실과 절망 속에서도 죽음을 초월하여 영원히 서로를 삼키는 지독하고 순수한 사랑", color: "#3a0ca3", height: 235, width: 40 },
+      { id: 19, title: "해가 지는 곳으로", author: "최진영", year: 2017, classNo: "813.7", authorCode: "최74ㅎ", vol: "", summary: "재앙으로 무너진 세상의 끝에서 삶과 온기를 찾아 떠나는 사람들의 여정", color: "#5e3023", height: 245, width: 43 },
+      { id: 20, title: "달러구트 꿈 백화점 (1권)", author: "이미예", year: 2020, classNo: "813.7", authorCode: "이38ㄷ", vol: "v.1", summary: "잠들어야만 입장할 수 있는 환상적인 상점에서 파는 꿈과 치유의 판타지", color: "#5e503f", height: 254, width: 48 },
+      { id: 21, title: "달러구트 꿈 백화점 (2권)", author: "이미예", year: 2021, classNo: "813.7", authorCode: "이38ㄷ", vol: "v.2", summary: "단골손님들의 추억과 설렘이 가득한 꿈의 제작소 이야기", color: "#4f4537", height: 254, width: 48 },
+      { id: 22, title: "살인자의 기억법", author: "김영하", year: 2013, classNo: "813.6", authorCode: "김64ㅅ", vol: "", summary: "알츠하이머로 사라져가는 기억을 붙들고 마지막 사투를 벌이는 은퇴한 살인자의 기록", color: "#2b2b2b", height: 242, width: 42 },
+      { id: 23, title: "작별인사", author: "김영하", year: 2022, classNo: "813.6", authorCode: "김64ㅈ", vol: "", summary: "인간과 기계의 경계에서 질문하는 삶의 유한성과 존재의 숭고함", color: "#3d5a80", height: 250, width: 46 },
+      { id: 24, title: "오직 두 사람", author: "김영하", year: 2017, classNo: "813.6", authorCode: "김64ㅇ", vol: "", summary: "돌이킬 수 없는 상실을 겪은 이들이 끝내 버텨내는 삶의 품격", color: "#4a4e69", height: 244, width: 44 },
+      { id: 25, title: "엄마를 부탁해", author: "신경숙", year: 2008, classNo: "813.6", authorCode: "신14ㅇ", vol: "", summary: "서울역에서 실종된 어머니의 발자취를 쫓으며 되돌아보는 모성의 희생과 사랑", color: "#8b5a2b", height: 252, width: 46 },
+      { id: 26, title: "도가니", author: "공지영", year: 2009, classNo: "813.6", authorCode: "공19ㄷ", vol: "", summary: "어느 특수학교의 은폐된 진실과 부조리에 맞서는 사람들의 용기 있는 기록", color: "#403d39", height: 255, width: 48 },
+      { id: 27, title: "우리들의 행복한 시간", author: "공지영", year: 2005, classNo: "813.6", authorCode: "공19ㅇ", vol: "", summary: "삶을 포기하려 했던 두 남녀가 매주 목요일 교도소 면회실에서 나누는 영혼의 치유", color: "#6b705c", height: 250, width: 46 },
+      { id: 28, title: "종의 기원", author: "정유정", year: 2016, classNo: "813.7", authorCode: "정63ㅈ", vol: "", summary: "순수 악(惡)의 내면을 거침없는 속도감으로 파헤치는 사이코패스의 심리 스릴러", color: "#1c1917", height: 260, width: 50 },
+      { id: 29, title: "7년의 밤", author: "정유정", year: 2011, classNo: "813.7", authorCode: "정63ㅊ", vol: "", summary: "세령호의 안개 속에서 벌어진 운명적 사건과 광기 어린 복수의 질주", color: "#283618", height: 264, width: 52 },
+      { id: 30, title: "완전한 행복", author: "정유정", year: 2021, classNo: "813.7", authorCode: "정63ㅇ", vol: "", summary: "자신의 행복을 위해 타인을 희생시키는 나르시시스트의 잔혹하고 섬뜩한 민낯", color: "#49111c", height: 258, width: 50 },
+      { id: 31, title: "우리가 빛의 속도로 갈 수 없다면", author: "김초엽", year: 2019, classNo: "813.7", authorCode: "김87ㅇ", vol: "", summary: "우주와 기술의 시대에도 결코 변하지 않는 온기와 인간적인 그리움을 담은 SF 걸작", color: "#22577a", height: 250, width: 46 },
+      { id: 32, title: "지구 끝의 온실", author: "김초엽", year: 2021, classNo: "813.7", authorCode: "김87ㅈ", vol: "", summary: "더스트로 멸망한 행성에서 푸른빛을 지켜낸 식물학자들과 사람들의 연대", color: "#2d6a4f", height: 255, width: 48 },
+      { id: 33, title: "두근두근 내 인생", author: "김애란", year: 2011, classNo: "813.7", authorCode: "김63ㄷ", vol: "", summary: "열일곱 나이에 여든 살의 몸을 가진 조로증 소년 아름이와 부모의 눈부신 청춘", color: "#b56576", height: 246, width: 44 },
+      { id: 34, title: "바깥은 여름", author: "김애란", year: 2017, classNo: "813.7", authorCode: "김63ㅂ", vol: "", summary: "상실의 계절을 통과하는 인물들의 내면을 섬세하고 우아하게 어루만진 단편집", color: "#6d6875", height: 242, width: 43 },
+      { id: 35, title: "달려라 아비", author: "김애란", year: 2005, classNo: "813.7", authorCode: "김63ㄷㄹ", vol: "", summary: "발랄한 언어 감각과 톡톡 튀는 상상력으로 그려낸 2000년대 젊은 세대의 가족 풍경", color: "#8d5b4c", height: 240, width: 42 },
+      { id: 36, title: "천 개의 파랑", author: "천선란", year: 2020, classNo: "813.7", authorCode: "천54ㅊ", vol: "", summary: "휴머노이드 기수 콜리와 안락사 위기의 경주마 투데이가 나누는 무한한 온기", color: "#3a86c8", height: 252, width: 46 },
+      { id: 37, title: "나인", author: "천선란", year: 2021, classNo: "813.7", authorCode: "천54ㄴ", vol: "", summary: "식물의 목소리를 듣는 소녀 나인이 마주하는 비밀과 성장의 파동", color: "#52796f", height: 248, width: 44 },
+      { id: 38, title: "보건교사 안은영", author: "정세랑", year: 2015, classNo: "813.7", authorCode: "정53ㅂ", vol: "", summary: "플라스틱 무지개칼과 비비탄 총으로 젤리 몬스터를 퇴치하는 명랑한 영웅의 모험", color: "#eaac8b", height: 244, width: 44 },
+      { id: 39, title: "시선으로부터,", author: "정세랑", year: 2020, classNo: "813.7", authorCode: "정53ㅅ", vol: "", summary: "시대의 폭력에 굴하지 않고 주체적으로 살아낸 심시선 여사와 그 후손들의 하와이 제사", color: "#355070", height: 258, width: 48 },
+      { id: 40, title: "피프티 피플", author: "정세랑", year: 2016, classNo: "813.7", authorCode: "정53ㅍ", vol: "", summary: "대학병원을 중심으로 교차하는 50명의 다채로운 삶과 다정한 연결고리", color: "#6b9080", height: 255, width: 48 },
+      { id: 41, title: "모순", author: "양귀자", year: 1998, classNo: "813.6", authorCode: "양19ㅁ", vol: "", summary: "인생의 모순과 양면성 속에서 진정한 행복과 사랑의 의미를 탐색하는 안진진의 고백", color: "#9c6644", height: 245, width: 45 },
+      { id: 42, title: "원미동 사람들", author: "양귀자", year: 1987, classNo: "813.6", authorCode: "양19ㅇ", vol: "", summary: "부천 원미동 골목길 서민들의 소박하고도 치열한 삶의 희로애락", color: "#7f4f24", height: 248, width: 45 },
+      { id: 43, title: "당신들의 천국", author: "이청준", year: 1976, classNo: "813.6", authorCode: "이84ㄷ", vol: "", summary: "소록도를 무대로 지배와 자유, 사랑과 동상의 비극을 심도 있게 탐구한 명작", color: "#3b3a36", height: 262, width: 50 },
+      { id: 44, title: "눈길", author: "이청준", year: 1977, classNo: "813.6", authorCode: "이84ㄴ", vol: "", summary: "새벽 눈길 위에 남겨진 어머니의 시린 발자국과 깊이를 알 수 없는 자식 사랑", color: "#5c6b73", height: 238, width: 40 },
+      { id: 45, title: "서편제", author: "이청준", year: 1976, classNo: "813.6", authorCode: "이84ㅅ", vol: "", summary: "소리에 평생을 바친 소리꾼 남매의 한(恨)과 예술적 승화의 서사", color: "#54494b", height: 242, width: 42 },
+      { id: 46, title: "봄·봄", author: "김유정", year: 1935, classNo: "813.5", authorCode: "김64ㅂ", vol: "", summary: "점순이와의 혼례를 두고 장인과 벌이는 순박한 데릴사위의 해학적인 희극", color: "#a47148", height: 235, width: 40 },
+      { id: 47, title: "동백꽃", author: "김유정", year: 1936, classNo: "813.5", authorCode: "김64ㄷ", vol: "", summary: "알싸한 노란 동백꽃 속에서 피어나는 풋풋하고 유머러스한 청춘의 애정", color: "#b08968", height: 235, width: 40 },
+      { id: 48, title: "날개", author: "이상", year: 1936, classNo: "813.5", authorCode: "이52ㄴ", vol: "", summary: "\"날개야 다시 돋아라.\" 식민지 지식인의 분열된 자아와 모더니즘의 금자탑", color: "#22223b", height: 236, width: 40 },
+      { id: 49, title: "운수 좋은 날", author: "현진건", year: 1924, classNo: "813.5", authorCode: "현19ㅇ", vol: "", summary: "인력거꾼 김첨지의 기막힌 행운 뒤에 닥쳐온 비극적이고 사실적인 아이러니", color: "#4a4e69", height: 236, width: 40 },
+      { id: 50, title: "B사감과 러브레터", author: "현진건", year: 1925, classNo: "813.5", authorCode: "현19ㅂ", vol: "", summary: "엄격한 규율 뒤에 억압된 인간 본능의 슬픈 이중성을 포착한 수작", color: "#6c584c", height: 235, width: 40 },
+      { id: 51, title: "메밀꽃 필 무렵", author: "이효석", year: 1936, classNo: "813.5", authorCode: "이95ㅁ", vol: "", summary: "달밤의 메밀밭 길을 걸으며 나누는 장돌뱅이 허생원의 아련한 옛사랑과 인연", color: "#adc178", height: 236, width: 40 },
+      { id: 52, title: "태평천하", author: "채만식", year: 1938, classNo: "813.5", authorCode: "채32ㅌ", vol: "", summary: "일제 치하를 '태평천하'라 부르는 윤직원 영감 일가의 탐욕과 타락을 풍자", color: "#805b10", height: 248, width: 44 },
+      { id: 53, title: "탁류", author: "채만식", year: 1937, classNo: "813.5", authorCode: "채32ㅌㄹ", vol: "", summary: "군산 금강변의 혼탁한 물결 속에 휩쓸리는 한 여인의 비극적 생애", color: "#582f0e", height: 254, width: 46 },
+      { id: 54, title: "삼대", author: "염상섭", year: 1931, classNo: "813.5", authorCode: "염53ㅅ", vol: "", summary: "조선 말기부터 1920년대에 이르는 조씨 일가 삼대의 갈등과 가치관의 충돌", color: "#4c3d3d", height: 260, width: 50 },
+      { id: 55, title: "만세전", author: "염상섭", year: 1922, classNo: "813.5", authorCode: "염53ㅁ", vol: "", summary: "3·1 운동 직전 도쿄에서 서울로 향하는 지식인의 눈에 비친 식민지 조선의 현실", color: "#424b54", height: 242, width: 42 },
+      { id: 56, title: "소나기", author: "황순원", year: 1953, classNo: "813.5", authorCode: "황53ㅅ", vol: "", summary: "시골 소년과 도시 소녀의 소나기처럼 짧고 투명하고 애틋한 첫사랑", color: "#606c38", height: 235, width: 40 },
+      { id: 57, title: "카인의 후예", author: "황순원", year: 1954, classNo: "813.5", authorCode: "황53ㅋ", vol: "", summary: "해방 직후 북한의 토지개혁 소용돌이 속에서 벌어지는 인간성 파괴와 비극", color: "#720026", height: 248, width: 45 },
+      { id: 58, title: "나무들 비탈에 서다", author: "황순원", year: 1960, classNo: "813.5", authorCode: "황53ㄴ", vol: "", summary: "한국전쟁이 청춘들에게 남긴 깊은 정신적 외상과 방황을 예리하게 응시", color: "#283618", height: 250, width: 46 },
+      { id: 59, title: "우리들의 일그러진 영웅", author: "이문열", year: 1987, classNo: "813.6", authorCode: "이38ㅇ", vol: "", summary: "시골 초등학교 교실의 절대권력 엄석대를 통해 조명한 권력과 맹종의 축소판", color: "#603808", height: 240, width: 42 },
+      { id: 60, title: "젊은 날의 초상", author: "이문열", year: 1981, classNo: "813.6", authorCode: "이38ㅈ", vol: "", summary: "방황과 번민 속에서 지적·예술적 완성을 향해 나아가는 청년의 자전적 서사", color: "#3a506b", height: 250, width: 46 },
+      { id: 61, title: "사람의 아들", author: "이문열", year: 1979, classNo: "813.6", authorCode: "이38ㅅ", vol: "", summary: "신의 구원과 인간의 고통 사이에서 진정한 구원을 갈구했던 아하스 페르츠의 사상", color: "#4f000b", height: 254, width: 48 },
+      { id: 62, title: "이문열 삼국지 (1권)", author: "이문열", year: 1988, classNo: "813.6", authorCode: "이38ㅅ", vol: "v.1", summary: "도원결의에서 시작되는 영웅호걸들의 거대한 대망과 지략의 대서사시", color: "#7a1c1c", height: 268, width: 52 },
+      { id: 63, title: "이문열 삼국지 (2권)", author: "이문열", year: 1988, classNo: "813.6", authorCode: "이38ㅅ", vol: "v.2", summary: "군웅할거의 난세 속에서 펼쳐지는 조조와 유비의 운명적 패권 다툼", color: "#7a1c1c", height: 268, width: 52 },
+      { id: 64, title: "이문열 삼국지 (3권)", author: "이문열", year: 1988, classNo: "813.6", authorCode: "이38ㅅ", vol: "v.3", summary: "천하를 뒤흔드는 적벽대전과 삼국 정립의 서막", color: "#7a1c1c", height: 268, width: 52 },
+      { id: 65, title: "태백산맥 (1권)", author: "조정래", year: 1986, classNo: "813.6", authorCode: "조34ㅌ", vol: "v.1", summary: "여순사건부터 분단에 이르는 민족사의 비극을 웅장한 필치로 되살린 대작", color: "#3c2f2f", height: 272, width: 54 },
+      { id: 66, title: "태백산맥 (2권)", author: "조정래", year: 1986, classNo: "813.6", authorCode: "조34ㅌ", vol: "v.2", summary: "지리산 빨치산과 민중들의 처절한 생존과 이념의 대립", color: "#3c2f2f", height: 272, width: 54 },
+      { id: 67, title: "아리랑 (1권)", author: "조정래", year: 1990, classNo: "813.6", authorCode: "조34ㅇ", vol: "v.1", summary: "일제강점기 가렴주구에 밀려 세계 각지로 유랑해야 했던 민초들의 수난사", color: "#463f3a", height: 272, width: 54 },
+      { id: 68, title: "한강 (1권)", author: "조정래", year: 2001, classNo: "813.6", authorCode: "조34ㅎ", vol: "v.1", summary: "해방 이후 4·19와 5·16, 격동의 현대사를 관통하는 민중의 땀과 눈물", color: "#2b2d42", height: 272, width: 54 },
+      { id: 69, title: "칼의 노래", author: "김훈", year: 2001, classNo: "813.6", authorCode: "김98ㅋ", vol: "", summary: "임진왜란의 바다 위에서 고독과 죽음을 응시했던 이순신의 서늘하고 단단한 내면", color: "#1f2421", height: 254, width: 48 },
+      { id: 70, title: "남한산성", author: "김훈", year: 2007, classNo: "813.6", authorCode: "김98ㄴ", vol: "", summary: "혹한의 산성 안에서 주화파와 척화파의 대립 속에 치욕과 삶을 감당한 역사의 순간", color: "#343a40", height: 252, width: 46 },
+      { id: 71, title: "하얼빈", author: "김훈", year: 2022, classNo: "813.6", authorCode: "김98ㅎ", vol: "", summary: "이토 히로부미를 저격한 청년 안중근의 짧고 맹렬했던 빛의 시간", color: "#495057", height: 250, width: 46 },
+      { id: 72, title: "그 많던 싱아는 누가 다 먹었을까", author: "박완서", year: 1992, classNo: "813.6", authorCode: "박63ㄱ", vol: "", summary: "박적골의 싱그럽던 유년과 전쟁으로 얼룩진 서울에서의 청춘을 기록한 자전적 명작", color: "#a37081", height: 252, width: 46 },
+      { id: 73, title: "나목", author: "박완서", year: 1970, classNo: "813.6", authorCode: "박63ㄴ", vol: "", summary: "전쟁의 폐허 속 미군 PX 초상화부에서 만난 화가 박수근과 젊은 여인의 예술적 교감", color: "#6b4f4f", height: 246, width: 44 },
+      { id: 74, title: "엄마의 말뚝", author: "박완서", year: 1980, classNo: "813.6", authorCode: "박63ㅇ", vol: "", summary: "전쟁이 남긴 영원한 상흔과 이를 온몸으로 짊어진 어머니의 끈질긴 모성", color: "#583131", height: 242, width: 42 },
+      { id: 75, title: "아주 오래된 농담", author: "박완서", year: 2000, classNo: "813.6", authorCode: "박63ㅇㅈ", vol: "", summary: "자본주의와 속물주의에 젖어든 상류사회의 위선과 인간의 욕망을 해부한 소설", color: "#774936", height: 252, width: 46 },
+      { id: 76, title: "한국이 싫어서", author: "장강명", year: 2015, classNo: "813.7", authorCode: "장19ㅎ", vol: "", summary: "\"내가 여기서는 가망이 없어서 그래.\" 호주로 떠난 계나의 솔직하고 치열한 탈출기", color: "#e07a5f", height: 242, width: 43 },
+      { id: 77, title: "댓글부대", author: "장강명", year: 2015, classNo: "813.7", authorCode: "장19ㄷ", vol: "", summary: "인터넷 여론 조작의 어두운 실체를 파헤친 서늘한 사회 고발형 스릴러", color: "#3d3a45", height: 250, width: 46 },
+      { id: 78, title: "표백", author: "장강명", year: 2011, classNo: "813.7", authorCode: "장19ㅍ", vol: "", summary: "완성된 사회 속에서 아무것도 보탤 것이 없는 청년 세대의 허무와 저항", color: "#4f5d75", height: 248, width: 44 },
+      { id: 79, title: "위저드 베이커리", author: "구병모", year: 2008, classNo: "813.7", authorCode: "구45ㅇ", vol: "", summary: "마법의 빵을 파는 기묘한 빵집으로 피신한 소년이 마주하는 선택과 책임의 세계", color: "#6a0572", height: 246, width: 44 },
+      { id: 80, title: "파과", author: "구병모", year: 2013, classNo: "813.7", authorCode: "구45ㅍ", vol: "", summary: "노쇠해진 60대 여성 킬러 '조각'이 생의 끝자락에서 느끼는 애틋한 인간적 온기", color: "#800e13", height: 255, width: 48 },
+      { id: 81, title: "아가미", author: "구병모", year: 2011, classNo: "813.7", authorCode: "구45ㅇㄱ", vol: "", summary: "목 뒤에 아가미가 돋아난 소년 곤이 세상의 폭력 속에서 헤엄쳐가는 비극적 환상동화", color: "#0077b6", height: 242, width: 42 },
+      { id: 82, title: "저주토끼", author: "정보라", year: 2017, classNo: "813.7", authorCode: "정43ㅈ", vol: "", summary: "부조리한 세상의 탐욕과 폭력에 마법과 저주로 응수하는 기괴하고 매혹적인 단편집 (부커상 최종후보)", color: "#14213d", height: 245, width: 44 },
+      { id: 83, title: "파도가 바다의 일이라면", author: "김연수", year: 2012, classNo: "813.7", authorCode: "김63ㅍ", vol: "", summary: "입양아 카밀라가 친엄마의 비밀을 찾아 떠나는 애절하고 눈부신 심연의 여정", color: "#005f73", height: 250, width: 46 },
+      { id: 84, title: "네가 누구든 얼마나 외롭든", author: "김연수", year: 2007, classNo: "813.7", authorCode: "김63ㄴ", vol: "", summary: "1990년대 초 격동기의 청춘들이 겪은 사랑과 이념, 고독에 관한 서정적 탐구", color: "#0a9396", height: 258, width: 48 },
+      { id: 85, title: "새의 선물", author: "은희경", year: 1995, classNo: "813.6", authorCode: "은95ㅅ", vol: "", summary: "열두 살에 이미 삶의 비밀을 알아버린 조숙한 소녀 진희의 냉소적이고 매혹적인 성장기", color: "#bb9457", height: 250, width: 46 },
+      { id: 86, title: "마지막 춤은 나와 함께", author: "은희경", year: 1998, classNo: "813.6", authorCode: "은95ㅁ", vol: "", summary: "사랑에 대한 환상을 거두고 게임처럼 연애를 관찰하는 현대 여성의 솔직한 고백", color: "#99582a", height: 245, width: 44 },
+      { id: 87, title: "빛의 과거", author: "은희경", year: 2019, classNo: "813.6", authorCode: "은95ㅂ", vol: "", summary: "1970년대 여자대학교 기숙사에서 피어난 여자들의 관계와 청춘의 명암", color: "#d4a373", height: 252, width: 46 },
+      { id: 88, title: "장마", author: "윤흥길", year: 1973, classNo: "813.6", authorCode: "윤97ㅈ", vol: "", summary: "한국전쟁으로 반목하던 두 할머니가 구렁이의 출현을 통해 화해에 이르는 민족적 화합", color: "#475569", height: 240, width: 42 },
+      { id: 89, title: "아홉 켤레의 구두로 남은 사내", author: "윤흥길", year: 1977, classNo: "813.6", authorCode: "윤97ㅇ", vol: "", summary: "광주대단지 사건을 배경으로 도시 빈민 소외와 지식인의 자존심을 그린 리얼리즘 수작", color: "#57534e", height: 248, width: 45 },
+      { id: 90, title: "황만근은 이렇게 말했다", author: "성석제", year: 2002, classNo: "813.6", authorCode: "성53ㅎ", vol: "", summary: "마을의 궂은일을 도맡아 하던 바보 황만근의 일생을 통해 농촌 현실과 이기주의를 풍자", color: "#854d0e", height: 244, width: 44 },
+      { id: 91, title: "투명인간", author: "성석제", year: 2014, classNo: "813.6", authorCode: "성53ㅌ", vol: "", summary: "한국 현대사의 압축성장 속에서 묵묵히 헌신하다 마침내 투명인간이 되어버린 가장의 생애", color: "#4338ca", height: 258, width: 50 },
+      { id: 92, title: "홀", author: "편혜영", year: 2016, classNo: "813.7", authorCode: "편65ㅎ", vol: "", summary: "교통사고로 전신마비가 된 남자가 장모의 간병 속에서 마주하는 서늘한 공포 (셜리 잭슨상)", color: "#18181b", height: 248, width: 44 },
+      { id: 93, title: "재와 빨강", author: "편혜영", year: 2010, classNo: "813.7", authorCode: "편65ㅈ", vol: "", summary: "전염병이 휩쓴 낯선 도시 C국에서 쥐를 잡던 남자가 살인 누명을 쓰고 추락하는 디스토피아", color: "#7f1d1d", height: 252, width: 46 },
+      { id: 94, title: "눈부신 안부", author: "백수린", year: 2023, classNo: "813.7", authorCode: "백53ㄴ", vol: "", summary: "파독 간호사였던 마리아 언니의 옛사랑을 찾아 독일로 떠난 해미의 다정하고 따뜻한 여정", color: "#31572c", height: 250, width: 46 },
+      { id: 95, title: "너무 한낮의 연애", author: "김금희", year: 2016, classNo: "813.7", authorCode: "김19ㄴ", vol: "", summary: "\"사랑하죠, 오늘도.\" 한낮처럼 투명하고 쓸쓸하게 지나가버린 시절의 연애와 회한", color: "#f4a261", height: 242, width: 43 },
+      { id: 96, title: "경애의 마음", author: "김금희", year: 2018, classNo: "813.7", authorCode: "김19ㄱ", vol: "", summary: "인천 호프집 화재 참사에서 살아남은 경애와 상수, 상처 입은 마음들이 빚어내는 단단한 연대", color: "#e76f51", height: 255, width: 48 },
+      { id: 97, title: "쇼코의 미소", author: "최은영", year: 2016, classNo: "813.7", authorCode: "최63ㅅ", vol: "", summary: "국경과 세대를 넘어 인물들의 서늘하고 따스한 내면을 다감하게 비추는 7편의 이야기", color: "#2a9d8f", height: 248, width: 44 },
+      { id: 98, title: "내게 무해한 사람", author: "최은영", year: 2018, classNo: "813.7", authorCode: "최63ㄴ", vol: "", summary: "누구에게도 상처 주고 싶지 않았던 연약하고 순정한 청춘들의 엇갈림과 기억", color: "#264653", height: 250, width: 45 },
+      { id: 99, title: "밝은 밤", author: "최은영", year: 2021, classNo: "813.7", authorCode: "최63ㅂ", vol: "", summary: "희령이라는 작은 바닷가 마을에서 만난 외할머니와 4대에 걸친 여성들의 삶의 연대기", color: "#1e3d59", height: 258, width: 48 },
+      { id: 100, title: "82년생 김지영", author: "조남주", year: 2016, classNo: "813.7", authorCode: "조19ㅍ", vol: "", summary: "1982년 봄에 태어난 평범한 서른네 살 김지영 씨의 삶을 통해 조명한 한국 여성의 현실", color: "#a85751", height: 245, width: 44 }
+    ];
+
+    /* ==========================================================================
+       2. KDC SORTING COMPARATOR
+       ========================================================================== */
+    function compareKDC(a, b) {
+      const parseClassNo = (str) => {
+        const parts = str.split('.');
+        const main = parseInt(parts[0], 10) || 0;
+        const sub = parts[1] || "";
+        return { main, sub, raw: str };
+      };
+
+      const classA = parseClassNo(a.classNo);
+      const classB = parseClassNo(b.classNo);
+
+      if (classA.main !== classB.main) {
+        return classA.main - classB.main;
+      }
+      if (classA.sub !== classB.sub) {
+        const valA = parseFloat("0." + classA.sub) || 0;
+        const valB = parseFloat("0." + classB.sub) || 0;
+        if (valA !== valB) return valA - valB;
+        if (classA.sub.length !== classB.sub.length) return classA.sub.length - classB.sub.length;
+      }
+
+      const parseAuthorCode = (str) => {
+        const match = str.match(/^([가-힣])(\d+)(.*)$/);
+        if (match) {
+          return { surname: match[1], num: parseInt(match[2], 10), initial: match[3] };
+        }
+        return { surname: str, num: 0, initial: "" };
+      };
+
+      const authA = parseAuthorCode(a.authorCode);
+      const authB = parseAuthorCode(b.authorCode);
+
+      const surnameComp = authA.surname.localeCompare(authB.surname, 'ko');
+      if (surnameComp !== 0) return surnameComp;
+
+      if (authA.num !== authB.num) return authA.num - authB.num;
+
+      const initComp = authA.initial.localeCompare(authB.initial, 'ko');
+      if (initComp !== 0) return initComp;
+
+      const volA = a.vol || "";
+      const volB = b.vol || "";
+      if (volA !== volB) {
+        if (!volA) return -1;
+        if (!volB) return 1;
+        return volA.localeCompare(volB, 'ko', { numeric: true });
+      }
+
+      const titleComp = a.title.localeCompare(b.title, 'ko');
+      if (titleComp !== 0) return titleComp;
+      return a.id - b.id;
+    }
+
+    /* ==========================================================================
+       3. SOUND SYNTHESIZER
+       ========================================================================== */
+    class SoundFX {
+      constructor() {
+        this.ctx = null;
+        this.enabled = true;
+      }
+
+      init() {
+        if (!this.ctx) {
+          const AudioContext = window.AudioContext || window.webkitAudioContext;
+          if (AudioContext) {
+            this.ctx = new AudioContext();
+          }
+        }
+        if (this.ctx && this.ctx.state === 'suspended') {
+          this.ctx.resume();
+        }
+      }
+
+      playGrab() {
+        if (!this.enabled) return;
+        this.init();
+        if (!this.ctx) return;
+
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(180, this.ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(340, this.ctx.currentTime + 0.08);
+
+        gain.gain.setValueAtTime(0.12, this.ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.08);
+
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start();
+        osc.stop(this.ctx.currentTime + 0.09);
+      }
+
+      playDrop() {
+        if (!this.enabled) return;
+        this.init();
+        if (!this.ctx) return;
+
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(240, this.ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(80, this.ctx.currentTime + 0.12);
+
+        gain.gain.setValueAtTime(0.2, this.ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.12);
+
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start();
+        osc.stop(this.ctx.currentTime + 0.13);
+      }
+
+      playSuccess() {
+        if (!this.enabled) return;
+        this.init();
+        if (!this.ctx) return;
+
+        const notes = [261.63, 329.63, 392.00, 493.88, 523.25];
+        notes.forEach((freq, i) => {
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(freq, this.ctx.currentTime + i * 0.09);
+
+          gain.gain.setValueAtTime(0, this.ctx.currentTime + i * 0.09);
+          gain.gain.linearRampToValueAtTime(0.15, this.ctx.currentTime + i * 0.09 + 0.02);
+          gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + i * 0.09 + 0.45);
+
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start(this.ctx.currentTime + i * 0.09);
+          osc.stop(this.ctx.currentTime + i * 0.09 + 0.5);
+        });
+      }
+
+      playNotice() {
+        if (!this.enabled) return;
+        this.init();
+        if (!this.ctx) return;
+
+        const notes = [330, 260];
+        notes.forEach((freq, i) => {
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(freq, this.ctx.currentTime + i * 0.12);
+
+          gain.gain.setValueAtTime(0.15, this.ctx.currentTime + i * 0.12);
+          gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + i * 0.12 + 0.2);
+
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start(this.ctx.currentTime + i * 0.12);
+          osc.stop(this.ctx.currentTime + i * 0.12 + 0.25);
+        });
+      }
+    }
+
+    const sound = new SoundFX();
+
+    /* ==========================================================================
+       4. GAME CONTROLLER
+       ========================================================================== */
+    class LibraryOrganizerGame {
+      constructor() {
+        this.currentRoundBooks = [];
+        this.placedBooks = []; // Single unified shelf
+        this.trayBooks = [];
+        this.selectedBookCount = 8;
+        this.MAX_SHELF_CAPACITY = 20; // Shelf capacity limit
+
+        // Selection state
+        this.selectedBookId = null;
+        this.selectedSource = null; // 'tray' or 'shelf'
+
+        // Drag state
+        this.draggedBookId = null;
+        this.draggedFrom = null;
+
+        // Inspector Base Width & Dynamic Proportional Scale
+        this.inspBaseWidth = 360;
+        this.inspCurrentScale = 1.0;
+
+        this.initDOM();
+        this.bindEvents();
+        this.bindDraggableAndScalableInspector();
+        this.startNewRound();
+      }
+
+      initDOM() {
+        this.bookshelfScaler = document.getElementById('bookshelfScaler');
+        this.singleShelfRow = document.getElementById('singleShelfRow');
+        this.shelfBooksContainer = document.getElementById('shelfBooksContainer');
+        this.trayContainer = document.getElementById('trayBooksContainer');
+        this.stagingArea = document.getElementById('stagingArea');
+        this.progressText = document.getElementById('progressText');
+        this.trayCountText = document.getElementById('trayCountText');
+        this.difficultySelect = document.getElementById('difficultySelect');
+        this.inspectorCard = document.getElementById('bookInspectorCard');
+        this.selectionNotice = document.getElementById('selectionNotice');
+        this.selectionNoticeText = document.getElementById('selectionNoticeText');
+      }
+
+      bindEvents() {
+        // Add Book to Tray button (Capacity bounded)
+        document.getElementById('btnAddBook').addEventListener('click', () => this.addNewBookToTray());
+
+        // Cancel Selection button
+        document.getElementById('btnCancelSelection').addEventListener('click', () => this.clearSelection());
+
+        // Staging Area click to return a selected shelf book
+        this.stagingArea.addEventListener('click', (e) => {
+          if (this.selectedBookId && this.selectedSource === 'shelf') {
+            if (!e.target.closest('.book-spine')) {
+              this.returnBookToTray(this.selectedBookId);
+              this.clearSelection();
+            }
+          }
+        });
+
+        // Difficulty / New Round
+        this.difficultySelect.addEventListener('change', (e) => {
+          this.selectedBookCount = parseInt(e.target.value, 10);
+          this.startNewRound();
+        });
+        document.getElementById('btnNewGame').addEventListener('click', () => this.startNewRound());
+
+        // Verification
+        document.getElementById('btnVerify').addEventListener('click', () => this.verifyShelves());
+
+        // Sound Toggle
+        document.getElementById('btnSoundToggle').addEventListener('click', () => {
+          sound.enabled = !sound.enabled;
+          document.getElementById('soundIcon').innerText = sound.enabled ? '🔊 소리 켜짐' : '🔇 소리 꺼짐';
+        });
+
+        // Hint Button
+        document.getElementById('btnSortHint').addEventListener('click', () => this.showHint());
+
+        // Modals
+        document.getElementById('btnGuide').addEventListener('click', () => {
+          document.getElementById('guideModal').classList.add('active');
+        });
+        document.getElementById('btnCatalog').addEventListener('click', () => {
+          this.renderCatalog();
+          document.getElementById('catalogModal').classList.add('active');
+        });
+
+        // Inspector Close
+        document.getElementById('btnCloseInsp').addEventListener('click', () => {
+          this.inspectorCard.style.display = 'none';
+        });
+
+        document.getElementById('btnRetryCurrent').addEventListener('click', () => {
+          document.getElementById('resultModal').classList.remove('active');
+          this.retryMistakesOnly();
+        });
+        document.getElementById('btnNextRound').addEventListener('click', () => {
+          document.getElementById('resultModal').classList.remove('active');
+          this.startNewRound();
+        });
+
+        document.querySelectorAll('.modal-backdrop').forEach(modal => {
+          modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+              modal.classList.remove('active');
+            }
+          });
+        });
+
+        document.getElementById('catalogSearch').addEventListener('input', (e) => {
+          this.renderCatalog(e.target.value);
+        });
+
+        // Single Shelf Row Setup
+        this.setupSingleShelfHandler();
+      }
+
+      /* Add a new book to the tray within shelf capacity limit */
+      addNewBookToTray() {
+        if (this.currentRoundBooks.length >= this.MAX_SHELF_CAPACITY) {
+          sound.playNotice();
+          alert(`📚 책장 수용 한도(최대 ${this.MAX_SHELF_CAPACITY}권)에 도달하여 더 이상 책을 추가할 수 없습니다!`);
+          return;
+        }
+
+        const available = NOVELS_DATASET.filter(b => !this.currentRoundBooks.some(cb => cb.id === b.id));
+        if (available.length === 0) {
+          alert('소장된 모든 도서(100권)가 이미 추가되었습니다!');
+          return;
+        }
+
+        const randomBook = available[Math.floor(Math.random() * available.length)];
+        this.currentRoundBooks.push(randomBook);
+        this.trayBooks.push(randomBook);
+
+        sound.playGrab();
+        this.renderAll();
+      }
+
+      /* Draggable & Corner-Scalable Inspector */
+      bindDraggableAndScalableInspector() {
+        const inspHeader = document.getElementById('inspectorHeader');
+        const resizeHandle = document.getElementById('inspectorResizeHandle');
+        let isDraggingInsp = false;
+        let dragOffset = { x: 0, y: 0 };
+
+        // 1. Move Inspector by Header Drag
+        inspHeader.addEventListener('pointerdown', (e) => {
+          if (e.target.closest('button')) return;
+          isDraggingInsp = true;
+          inspHeader.setPointerCapture(e.pointerId);
+          const rect = this.inspectorCard.getBoundingClientRect();
+          dragOffset = {
+            x: e.clientX - rect.left,
+            y: e.clientY - rect.top
+          };
+        });
+
+        window.addEventListener('pointermove', (e) => {
+          if (!isDraggingInsp) return;
+          const newX = Math.max(8, Math.min(window.innerWidth - this.inspectorCard.offsetWidth - 8, e.clientX - dragOffset.x));
+          const newY = Math.max(8, Math.min(window.innerHeight - this.inspectorCard.offsetHeight - 8, e.clientY - dragOffset.y));
+          this.inspectorCard.style.left = `${newX}px`;
+          this.inspectorCard.style.top = `${newY}px`;
+          this.inspectorCard.style.bottom = 'auto';
+          this.inspectorCard.style.right = 'auto';
+        });
+
+        const stopInspDrag = (e) => {
+          if (isDraggingInsp) {
+            isDraggingInsp = false;
+            try { inspHeader.releasePointerCapture(e.pointerId); } catch(err){}
+          }
+        };
+        window.addEventListener('pointerup', stopInspDrag);
+        window.addEventListener('pointercancel', stopInspDrag);
+
+        // 2. Corner Drag Resize with Proportional Scaling
+        let isResizingInsp = false;
+        let resizeStart = { x: 0, startWidth: 360 };
+
+        resizeHandle.addEventListener('pointerdown', (e) => {
+          e.stopPropagation();
+          isResizingInsp = true;
+          resizeHandle.setPointerCapture(e.pointerId);
+          resizeStart = {
+            x: e.clientX,
+            startWidth: this.inspectorCard.offsetWidth
+          };
+        });
+
+        window.addEventListener('pointermove', (e) => {
+          if (!isResizingInsp) return;
+          const deltaX = e.clientX - resizeStart.x;
+          const newWidth = Math.max(260, Math.min(window.innerWidth - 30, resizeStart.startWidth + deltaX));
+          
+          this.inspectorCard.style.width = `${newWidth}px`;
+          
+          const scale = newWidth / this.inspBaseWidth;
+          this.inspCurrentScale = scale;
+          this.inspectorCard.style.setProperty('--scale', scale.toFixed(2));
+        });
+
+        const stopResize = (e) => {
+          if (isResizingInsp) {
+            isResizingInsp = false;
+            try { resizeHandle.releasePointerCapture(e.pointerId); } catch(err){}
+          }
+        };
+        window.addEventListener('pointerup', stopResize);
+        window.addEventListener('pointercancel', stopResize);
+      }
+
+      startNewRound() {
+        this.clearSelection();
+        this.inspectorCard.style.display = 'none';
+        sound.playNotice();
+        const shuffled = [...NOVELS_DATASET].sort(() => 0.5 - Math.random());
+        this.currentRoundBooks = shuffled.slice(0, this.selectedBookCount);
+
+        this.placedBooks = [];
+        this.trayBooks = [...this.currentRoundBooks].sort(() => 0.5 - Math.random());
+
+        this.renderAll();
+      }
+
+      resetToTray() {
+        this.clearSelection();
+        this.inspectorCard.style.display = 'none';
+        this.placedBooks = [];
+        this.trayBooks = [...this.currentRoundBooks].sort(() => 0.5 - Math.random());
+        this.renderAll();
+      }
+
+      retryMistakesOnly() {
+        this.clearSelection();
+        this.inspectorCard.style.display = 'none';
+
+        const expectedOrder = [...this.currentRoundBooks].sort(compareKDC);
+        const correctBooks = [];
+        const wrongBooks = [];
+
+        this.placedBooks.forEach((book, idx) => {
+          if (expectedOrder[idx] && expectedOrder[idx].id === book.id) {
+            correctBooks.push(book);
+          } else {
+            wrongBooks.push(book);
+          }
+        });
+
+        // 위치가 맞은 도서만 서가에 남김
+        this.placedBooks = correctBooks;
+
+        // 위치가 틀린 도서만 트롤리로 다시 이동
+        wrongBooks.forEach(book => {
+          if (!this.trayBooks.some(b => b.id === book.id)) {
+            this.trayBooks.push(book);
+          }
+        });
+
+        sound.playDrop();
+        this.renderAll();
+      }
+
+      renderAll() {
+        this.renderTray();
+        this.renderShelf();
+        this.updateStatus();
+      }
+
+      updateStatus() {
+        const placedCount = this.placedBooks.length;
+        const total = this.currentRoundBooks.length;
+        this.progressText.innerText = `${placedCount} / ${total} 권 정리됨`;
+        this.trayCountText.innerText = `${this.trayBooks.length}권`;
+
+        const btnVerify = document.getElementById('btnVerify');
+        if (placedCount === total) {
+          btnVerify.classList.add('pulse');
+        } else {
+          btnVerify.classList.remove('pulse');
+        }
+      }
+
+      /* Selection State Management */
+      selectBook(bookId, source) {
+        if (this.selectedBookId === bookId) {
+          this.clearSelection();
+          return;
+        }
+
+        const book = this.currentRoundBooks.find(b => b.id === bookId);
+        if (!book) return;
+
+        this.selectedBookId = bookId;
+        this.selectedSource = source;
+
+        // Visual selection highlight
+        document.querySelectorAll('.book-spine').forEach(el => {
+          if (parseInt(el.dataset.bookId, 10) === bookId) {
+            el.classList.add('is-selected');
+          } else {
+            el.classList.remove('is-selected');
+          }
+        });
+
+        // Banner text
+        if (source === 'tray') {
+          this.selectionNoticeText.innerHTML = `📌 <strong>《${book.title}》</strong> 선택됨! 서가의 원하는 <strong>책 사이(또는 앞뒤)</strong>를 클릭하면 그 위치에 들어갑니다.`;
+        } else {
+          this.selectionNoticeText.innerHTML = `📌 서가의 <strong>《${book.title}》</strong> 선택됨! 다른 책 사이를 클릭하여 순서를 바꾸거나, 하단 트롤리를 클릭하여 되돌리세요.`;
+        }
+        this.selectionNotice.classList.add('active');
+        this.singleShelfRow.classList.add('target-active');
+
+        sound.playGrab();
+        // Show enlarged info card ONLY ON CLICK
+        this.showInspector(book);
+      }
+
+      clearSelection() {
+        this.selectedBookId = null;
+        this.selectedSource = null;
+        document.querySelectorAll('.book-spine').forEach(el => {
+          el.classList.remove('is-selected', 'insert-target-before', 'insert-target-after');
+        });
+        this.singleShelfRow.classList.remove('target-active');
+        this.selectionNotice.classList.remove('active');
+      }
+
+      /* Create DOM Element for a book spine */
+      createBookSpineElement(book, source) {
+        const spine = document.createElement('div');
+        spine.className = 'book-spine';
+        if (this.selectedBookId === book.id) {
+          spine.classList.add('is-selected');
+        }
+        spine.id = `book-spine-${book.id}`;
+        spine.draggable = true;
+        spine.dataset.bookId = book.id;
+        spine.dataset.source = source;
+
+        spine.style.height = `${book.height}px`;
+        spine.style.width = `${book.width}px`;
+        spine.style.backgroundColor = book.color;
+
+        const ribs = document.createElement('div');
+        ribs.className = 'spine-ribs';
+        ribs.innerHTML = '<div class="spine-rib"></div><div class="spine-rib"></div><div class="spine-rib"></div>';
+        spine.appendChild(ribs);
+
+        const textContainer = document.createElement('div');
+        textContainer.className = 'spine-text-container';
+
+        const titleEl = document.createElement('div');
+        titleEl.className = 'spine-title';
+        titleEl.innerText = book.title;
+        textContainer.appendChild(titleEl);
+
+        const authorEl = document.createElement('div');
+        authorEl.className = 'spine-author';
+        authorEl.innerText = book.author;
+        textContainer.appendChild(authorEl);
+
+        spine.appendChild(textContainer);
+
+        const sticker = document.createElement('div');
+        sticker.className = 'call-number-sticker';
+        sticker.innerHTML = `
+          <div class="class-no">${book.classNo}</div>
+          <div class="author-code">${book.authorCode}</div>
+          ${book.vol ? `<div class="vol-no">${book.vol}</div>` : ''}
+        `;
+        spine.appendChild(sticker);
+
+        // Drag Events
+        spine.addEventListener('dragstart', (e) => {
+          this.draggedBookId = book.id;
+          this.draggedFrom = source;
+          spine.classList.add('dragging');
+          e.dataTransfer.setData('text/plain', book.id.toString());
+          e.dataTransfer.effectAllowed = 'move';
+          sound.playGrab();
+        });
+
+        spine.addEventListener('dragend', () => {
+          spine.classList.remove('dragging');
+          this.draggedBookId = null;
+          this.draggedFrom = null;
+        });
+
+        // Hover Insertion Visual Guide
+        if (source === 'shelf') {
+          spine.addEventListener('mousemove', (e) => {
+            if (this.selectedBookId) {
+              const rect = spine.getBoundingClientRect();
+              const isLeftHalf = (e.clientX - rect.left) < (rect.width / 2);
+              if (isLeftHalf) {
+                spine.classList.add('insert-target-before');
+                spine.classList.remove('insert-target-after');
+              } else {
+                spine.classList.add('insert-target-after');
+                spine.classList.remove('insert-target-before');
+              }
+            }
+          });
+
+          spine.addEventListener('mouseleave', () => {
+            spine.classList.remove('insert-target-before', 'insert-target-after');
+          });
+        }
+
+        // Click Handler
+        spine.addEventListener('click', (e) => {
+          e.stopPropagation();
+
+          if (this.selectedBookId) {
+            if (this.selectedBookId === book.id) {
+              this.clearSelection();
+            } else if (source === 'shelf') {
+              const rect = spine.getBoundingClientRect();
+              const isLeftHalf = (e.clientX - rect.left) < (rect.width / 2);
+              const currentBookIdx = this.placedBooks.findIndex(b => b.id === book.id);
+              const targetIdx = isLeftHalf ? currentBookIdx : currentBookIdx + 1;
+
+              this.insertBookIntoShelf(this.selectedBookId, targetIdx >= 0 ? targetIdx : 0);
+              this.clearSelection();
+            } else {
+              this.selectBook(book.id, source);
+            }
+          } else {
+            this.selectBook(book.id, source);
+          }
+        });
+
+        // Double Click to quickly return from shelf to tray
+        if (source === 'shelf') {
+          spine.addEventListener('dblclick', (e) => {
+            e.stopPropagation();
+            this.returnBookToTray(book.id);
+            this.clearSelection();
+          });
+        }
+
+        return spine;
+      }
+
+      renderTray() {
+        this.trayContainer.innerHTML = '';
+        if (this.trayBooks.length === 0) {
+          const emptyMsg = document.createElement('div');
+          emptyMsg.className = 'tray-empty-msg';
+          emptyMsg.innerHTML = '<span>✨ 모든 책을 서가에 정리했습니다! 상단의 <strong>[정리 검사하기]</strong> 버튼을 눌러주세요.</span>';
+          this.trayContainer.appendChild(emptyMsg);
+          return;
+        }
+
+        this.trayBooks.forEach(book => {
+          const el = this.createBookSpineElement(book, 'tray');
+          this.trayContainer.appendChild(el);
+        });
+
+        // Tray Drop Zone
+        this.trayContainer.ondragover = (e) => {
+          e.preventDefault();
+          e.dataTransfer.dropEffect = 'move';
+        };
+
+        this.trayContainer.ondrop = (e) => {
+          e.preventDefault();
+          const bookId = parseInt(e.dataTransfer.getData('text/plain'), 10);
+          if (bookId) {
+            this.returnBookToTray(bookId);
+            this.clearSelection();
+          }
+        };
+      }
+
+      renderShelf() {
+        this.shelfBooksContainer.innerHTML = '';
+
+        this.placedBooks.forEach((book, bookIdx) => {
+          const el = this.createBookSpineElement(book, 'shelf');
+
+          // Reorder on shelf by drag
+          el.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const rect = el.getBoundingClientRect();
+            const isLeftHalf = (e.clientX - rect.left) < (rect.width / 2);
+            if (isLeftHalf) {
+              el.classList.add('insert-target-before');
+              el.classList.remove('insert-target-after');
+            } else {
+              el.classList.add('insert-target-after');
+              el.classList.remove('insert-target-before');
+            }
+          });
+
+          el.addEventListener('dragleave', () => {
+            el.classList.remove('insert-target-before', 'insert-target-after');
+          });
+
+          el.addEventListener('drop', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            el.classList.remove('insert-target-before', 'insert-target-after');
+            const draggedId = parseInt(e.dataTransfer.getData('text/plain'), 10);
+            if (draggedId) {
+              const rect = el.getBoundingClientRect();
+              const isLeftHalf = (e.clientX - rect.left) < (rect.width / 2);
+              const targetIdx = isLeftHalf ? bookIdx : bookIdx + 1;
+              this.insertBookIntoShelf(draggedId, targetIdx);
+              this.clearSelection();
+            }
+          });
+
+          this.shelfBooksContainer.appendChild(el);
+        });
+
+        if (this.placedBooks.length === 0) {
+          const hint = document.createElement('div');
+          hint.className = 'shelf-slot-hint';
+          hint.innerHTML = `<span>📖 서가</span><span style="font-size: 0.82rem; opacity: 0.85;">책을 클릭하거나 드래그하여 꽂으세요</span>`;
+          this.shelfBooksContainer.appendChild(hint);
+        }
+      }
+
+      setupSingleShelfHandler() {
+        // Drag Over & Drop on Shelf
+        this.singleShelfRow.addEventListener('dragover', (e) => {
+          e.preventDefault();
+          e.dataTransfer.dropEffect = 'move';
+          this.singleShelfRow.classList.add('drag-over');
+        });
+
+        this.singleShelfRow.addEventListener('dragleave', () => {
+          this.singleShelfRow.classList.remove('drag-over');
+        });
+
+        this.singleShelfRow.addEventListener('drop', (e) => {
+          e.preventDefault();
+          this.singleShelfRow.classList.remove('drag-over');
+          const bookId = parseInt(e.dataTransfer.getData('text/plain'), 10);
+          if (bookId) {
+            this.placeBookToEndOfShelf(bookId);
+            this.clearSelection();
+          }
+        });
+
+        // Click on Shelf Row background -> Append to end of shelf
+        this.singleShelfRow.addEventListener('click', (e) => {
+          if (e.target.closest('.book-spine')) return;
+          if (this.selectedBookId) {
+            this.placeBookToEndOfShelf(this.selectedBookId);
+            this.clearSelection();
+          }
+        });
+      }
+
+      placeBookToEndOfShelf(bookId) {
+        const book = this.currentRoundBooks.find(b => b.id === bookId);
+        if (!book) return;
+
+        this.trayBooks = this.trayBooks.filter(b => b.id !== bookId);
+
+        const currentIdx = this.placedBooks.findIndex(b => b.id === bookId);
+        if (currentIdx !== -1) {
+          this.placedBooks.splice(currentIdx, 1);
+        }
+
+        this.placedBooks.push(book);
+
+        sound.playDrop();
+        this.renderAll();
+      }
+
+      insertBookIntoShelf(bookId, targetBookIdx) {
+        const book = this.currentRoundBooks.find(b => b.id === bookId);
+        if (!book) return;
+
+        this.trayBooks = this.trayBooks.filter(b => b.id !== bookId);
+
+        const currentIdx = this.placedBooks.findIndex(b => b.id === bookId);
+        if (currentIdx !== -1) {
+          this.placedBooks.splice(currentIdx, 1);
+          if (currentIdx < targetBookIdx) {
+            targetBookIdx--;
+          }
+        }
+
+        targetBookIdx = Math.max(0, Math.min(this.placedBooks.length, targetBookIdx));
+        this.placedBooks.splice(targetBookIdx, 0, book);
+
+        sound.playDrop();
+        this.renderAll();
+      }
+
+      returnBookToTray(bookId) {
+        const book = this.currentRoundBooks.find(b => b.id === bookId);
+        if (!book) return;
+
+        this.placedBooks = this.placedBooks.filter(b => b.id !== bookId);
+
+        if (!this.trayBooks.some(b => b.id === bookId)) {
+          this.trayBooks.push(book);
+        }
+
+        sound.playDrop();
+        this.renderAll();
+      }
+
+      /* Show Detail Inspector (Only on Click) */
+      showInspector(book) {
+        document.getElementById('inspTitle').innerText = book.title;
+        document.getElementById('inspAuthor').innerText = `${book.author} (${book.year}년)`;
+        document.getElementById('inspClassNo').innerText = book.classNo;
+        document.getElementById('inspAuthorCode').innerText = book.authorCode;
+        document.getElementById('inspVol').innerText = book.vol || '-';
+        document.getElementById('inspDesc').innerText = `"${book.summary}"`;
+
+        this.inspectorCard.style.display = 'block';
+      }
+
+      showHint() {
+        const sorted = [...this.currentRoundBooks].sort(compareKDC);
+        const first = sorted[0];
+        const last = sorted[sorted.length - 1];
+
+        alert(
+          `💡 [청구기호 정렬 힌트]\n\n` +
+          `• 가장 먼저 와야 하는 도서: [${first.classNo} ${first.authorCode}] 《${first.title}》\n` +
+          `• 가장 마지막에 와야 하는 도서: [${last.classNo} ${last.authorCode}] 《${last.title}》\n\n` +
+          `* 분류기호(소수점 오름차순) → 저자 성씨(가나다순) → 번호순으로 맞춰보세요!`
+        );
+      }
+
+      /* Verify Shelves (Do not reveal answers, only show correctness) */
+      verifyShelves() {
+        if (this.placedBooks.length < this.currentRoundBooks.length) {
+          sound.playNotice();
+          alert(`⚠️ 아직 정리하지 않은 책이 ${this.trayBooks.length}권 남아있습니다!\n모든 책을 책장으로 올려놓은 뒤 검사해주세요.`);
+          return;
+        }
+
+        const expectedOrder = [...this.currentRoundBooks].sort(compareKDC);
+        
+        let correctCount = 0;
+        let incorrectCount = 0;
+
+        const comparisonList = document.getElementById('comparisonList');
+        comparisonList.innerHTML = '';
+
+        this.placedBooks.forEach((userBook, idx) => {
+          const isCorrect = expectedOrder[idx] && (userBook.id === expectedOrder[idx].id);
+
+          if (isCorrect) {
+            correctCount++;
+          } else {
+            incorrectCount++;
+          }
+
+          const item = document.createElement('div');
+          item.className = `comparison-item ${isCorrect ? 'is-correct' : 'is-incorrect'}`;
+          item.innerHTML = `
+            <div>
+              <strong>${idx + 1}번 위치: 《${userBook.title}》</strong> (${userBook.author})
+              <div style="font-size: 0.78rem; color: ${isCorrect ? '#2d6a4f' : '#b02a2a'}; margin-top: 2px; font-weight: 500;">
+                ${isCorrect ? '✅ 올바른 순서로 정리되었습니다.' : '❌ 청구기호 순서가 맞지 않습니다.'}
+              </div>
+            </div>
+            <div class="comparison-badge" style="background: ${isCorrect ? '#1e3f26' : '#5c1d1d'}; color: ${isCorrect ? '#b7efc5' : '#ffd6d6'};">
+              ${isCorrect ? '정상' : '오류'}
+            </div>
+          `;
+          comparisonList.appendChild(item);
+        });
+
+        const banner = document.getElementById('resultScoreBanner');
+        const titleEl = document.getElementById('resultModalTitle');
+        const btnRetryCurrent = document.getElementById('btnRetryCurrent');
+
+        if (incorrectCount === 0) {
+          sound.playSuccess();
+          btnRetryCurrent.style.display = 'none';
+          banner.className = 'result-score-banner score-perfect';
+          banner.innerHTML = `
+            <div style="font-size: 1.5rem; margin-bottom: 4px;">🎉 완벽한 서가 정리 완료!</div>
+            <div style="font-size: 0.95rem; font-weight: normal;">
+              축하합니다! ${this.currentRoundBooks.length}권의 한국 소설을 청구기호 순서에 맞춰 100% 완벽하게 정리하셨습니다.
+            </div>
+          `;
+          titleEl.innerHTML = '<span>🏆 완벽한 정리 결과</span>';
+        } else {
+          sound.playNotice();
+          btnRetryCurrent.style.display = 'inline-flex';
+          banner.className = 'result-score-banner score-wrong';
+          banner.innerHTML = `
+            <div style="font-size: 1.35rem; margin-bottom: 4px;">📚 ${incorrectCount}권의 위치가 올바르지 않습니다.</div>
+            <div style="font-size: 0.88rem; font-weight: normal;">
+              전체 ${this.currentRoundBooks.length}권 중 <strong>${correctCount}권 일치</strong> / <strong>${incorrectCount}권 위치 오류</strong>.<br>
+              '다시 정리해보기'를 누르면 위치가 틀린 책만 트롤리로 되돌아갑니다.
+            </div>
+          `;
+          titleEl.innerHTML = '<span>📊 서가 정리 결과</span>';
+        }
+
+        document.getElementById('resultModal').classList.add('active');
+      }
+
+      renderCatalog(filter = "") {
+        const list = document.getElementById('catalogListContainer');
+        list.innerHTML = '';
+
+        const filtered = NOVELS_DATASET.filter(b => 
+          b.title.toLowerCase().includes(filter.toLowerCase()) ||
+          b.author.toLowerCase().includes(filter.toLowerCase()) ||
+          b.classNo.includes(filter) ||
+          b.authorCode.includes(filter)
+        );
+
+        filtered.forEach(book => {
+          const item = document.createElement('div');
+          item.className = 'comparison-item';
+          item.innerHTML = `
+            <div>
+              <strong>${book.id}. ${book.title}</strong> - ${book.author} (${book.year})
+              <div style="font-size: 0.75rem; color: #777; margin-top: 2px;">${book.summary}</div>
+            </div>
+            <div class="comparison-badge" style="white-space: nowrap;">
+              ${book.classNo} ${book.authorCode} ${book.vol}
+            </div>
+          `;
+          list.appendChild(item);
+        });
+      }
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      window.game = new LibraryOrganizerGame();
+    });
+  </script>
+</body>
+</html>
