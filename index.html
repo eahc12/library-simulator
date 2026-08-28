@@ -272,11 +272,11 @@
       background: #1e1008;
       box-shadow: inset 0 8px 18px rgba(0, 0, 0, 0.85);
       border-radius: 4px;
-      min-height: 310px;
+      min-height: 360px;
       position: relative;
       display: flex;
       align-items: flex-end;
-      padding: 24px 14px 0 14px;
+      padding: 26px 14px 0 14px;
       border-bottom: 12px solid #5a321d;
       cursor: pointer;
       transition: background 0.15s, box-shadow 0.15s;
@@ -332,6 +332,43 @@
       pointer-events: none;
     }
 
+    /* Glowing Vertical Insertion Indicator */
+    .shelf-insert-indicator {
+      position: absolute;
+      top: 18px;
+      bottom: 12px;
+      width: 6px;
+      background: linear-gradient(180deg, #fff7c2 0%, #ffd700 50%, #c99818 100%);
+      box-shadow: 0 0 14px #ffd700, 0 0 25px rgba(255, 215, 0, 0.9);
+      border-radius: 3px;
+      z-index: 60;
+      pointer-events: none;
+      display: none;
+      transition: left 0.05s ease-out, opacity 0.15s ease;
+      transform: translateX(-50%);
+    }
+
+    .shelf-insert-indicator::before {
+      content: '▼';
+      position: absolute;
+      top: -16px;
+      left: 50%;
+      transform: translateX(-50%);
+      color: #ffd700;
+      font-size: 14px;
+      text-shadow: 0 2px 5px rgba(0,0,0,0.9);
+      animation: bounceDown 0.6s infinite alternate ease-in-out;
+    }
+
+    @keyframes bounceDown {
+      from { transform: translateX(-50%) translateY(0); }
+      to { transform: translateX(-50%) translateY(3px); }
+    }
+
+    .shelf-insert-indicator.active {
+      display: block;
+    }
+
     /* Books Container on Single Shelf */
     .shelf-books-container {
       width: 100%;
@@ -341,7 +378,7 @@
       gap: 5px;
       position: relative;
       z-index: 4;
-      min-height: 295px;
+      min-height: 345px;
       padding-bottom: 2px;
       overflow-x: auto;
       scrollbar-width: none;
@@ -349,7 +386,7 @@
 
     .shelf-slot-hint {
       flex: 1;
-      height: 260px;
+      height: 300px;
       border: 2px dashed rgba(212, 175, 55, 0.35);
       border-radius: 4px;
       display: flex;
@@ -464,7 +501,7 @@
       justify-content: flex-start;
       gap: 6px;
       width: 100%;
-      overflow: hidden;
+      overflow: visible;
       flex: 1;
       padding-top: 4px;
       pointer-events: none;
@@ -475,15 +512,14 @@
       text-orientation: mixed;
       white-space: nowrap;
       font-family: 'Gowun Batang', 'Nanum Myeongjo', serif;
-      font-size: 0.82rem;
-      letter-spacing: 1.5px;
-      line-height: 1;
+      font-size: 0.80rem;
+      letter-spacing: 1px;
+      line-height: 1.05;
       text-shadow: 0 1px 2px rgba(0,0,0,0.9);
-      max-height: 145px;
-      overflow: hidden;
-      text-overflow: ellipsis;
+      overflow: visible;
       font-weight: 700;
       color: #fff;
+      flex-shrink: 0;
     }
 
     .spine-author {
@@ -491,13 +527,12 @@
       text-orientation: mixed;
       white-space: nowrap;
       font-size: 0.68rem;
-      letter-spacing: 1px;
+      letter-spacing: 0.8px;
       opacity: 0.9;
       color: #ebd8c2;
-      max-height: 60px;
-      overflow: hidden;
-      text-overflow: ellipsis;
+      overflow: visible;
       margin-top: 4px;
+      flex-shrink: 0;
     }
 
     /* Official Library Call Number Sticker */
@@ -584,12 +619,12 @@
       color: #553b26;
     }
 
-    /* Enlarged Tray with 32px top headroom so lifted/scaled books never clip */
+    /* Enlarged Tray with generous headroom so lifted/scaled books never clip */
     .tray-books-container {
       background: #472615;
       border-radius: 6px;
-      padding: 32px 16px 10px 16px;
-      min-height: 325px;
+      padding: 34px 16px 10px 16px;
+      min-height: 370px;
       display: flex;
       align-items: flex-end;
       gap: 8px;
@@ -1006,6 +1041,7 @@
         <div class="bookshelf-cabinet">
           <div class="single-shelf-row" id="singleShelfRow">
             <span class="shelf-header-tag">📖 한국 문학 서가 (청구기호 순서대로 정렬)</span>
+            <div class="shelf-insert-indicator" id="shelfInsertIndicator"></div>
             <div class="shelf-books-container" id="shelfBooksContainer">
               <!-- Sorted books go here -->
             </div>
@@ -1454,6 +1490,7 @@
         this.inspectorCard = document.getElementById('bookInspectorCard');
         this.selectionNotice = document.getElementById('selectionNotice');
         this.selectionNoticeText = document.getElementById('selectionNoticeText');
+        this.shelfInsertIndicator = document.getElementById('shelfInsertIndicator');
       }
 
       bindEvents() {
@@ -1737,6 +1774,7 @@
       clearSelection() {
         this.selectedBookId = null;
         this.selectedSource = null;
+        this.hideShelfInsertionGuide();
         document.querySelectorAll('.book-spine').forEach(el => {
           el.classList.remove('is-selected', 'insert-target-before', 'insert-target-after');
         });
@@ -1744,7 +1782,71 @@
         this.selectionNotice.classList.remove('active');
       }
 
-      /* Create DOM Element for a book spine */
+      /* Calculate Exact Insertion Index & Coordinates across the entire shelf */
+      calculateShelfInsertion(clientX) {
+        const spineElements = Array.from(this.shelfBooksContainer.querySelectorAll('.book-spine'));
+        const shelfRect = this.singleShelfRow.getBoundingClientRect();
+        
+        if (spineElements.length === 0) {
+          return { targetIdx: 0, indicatorX: 20, targetBookEl: null, position: 'before' };
+        }
+
+        for (let i = 0; i < spineElements.length; i++) {
+          const rect = spineElements[i].getBoundingClientRect();
+          const midX = rect.left + rect.width / 2;
+          if (clientX < midX) {
+            // Insert before book i
+            const indicatorX = rect.left - shelfRect.left - 2;
+            return { targetIdx: i, indicatorX: Math.max(8, indicatorX), targetBookEl: spineElements[i], position: 'before' };
+          }
+        }
+
+        // Insert after the last book
+        const lastEl = spineElements[spineElements.length - 1];
+        const lastRect = lastEl.getBoundingClientRect();
+        const indicatorX = lastRect.right - shelfRect.left + 2;
+        return { targetIdx: spineElements.length, indicatorX: indicatorX, targetBookEl: lastEl, position: 'after' };
+      }
+
+      /* Real-time Visual Guide for Shelf Insertion */
+      updateShelfInsertionGuide(clientX) {
+        if (!this.selectedBookId && !this.draggedBookId) {
+          this.hideShelfInsertionGuide();
+          return;
+        }
+
+        const { indicatorX, targetBookEl, position } = this.calculateShelfInsertion(clientX);
+
+        if (this.shelfInsertIndicator) {
+          this.shelfInsertIndicator.style.left = `${indicatorX}px`;
+          this.shelfInsertIndicator.classList.add('active');
+        }
+
+        // Clear previous highlights
+        document.querySelectorAll('.book-spine').forEach(el => {
+          el.classList.remove('insert-target-before', 'insert-target-after');
+        });
+
+        // Add glow edge to adjacent book
+        if (targetBookEl) {
+          if (position === 'before') {
+            targetBookEl.classList.add('insert-target-before');
+          } else {
+            targetBookEl.classList.add('insert-target-after');
+          }
+        }
+      }
+
+      hideShelfInsertionGuide() {
+        if (this.shelfInsertIndicator) {
+          this.shelfInsertIndicator.classList.remove('active');
+        }
+        document.querySelectorAll('.book-spine').forEach(el => {
+          el.classList.remove('insert-target-before', 'insert-target-after');
+        });
+      }
+
+      /* Create DOM Element for a book spine with dynamic height & full title display */
       createBookSpineElement(book, source) {
         const spine = document.createElement('div');
         spine.className = 'book-spine';
@@ -1756,8 +1858,11 @@
         spine.dataset.bookId = book.id;
         spine.dataset.source = source;
 
-        spine.style.height = `${book.height}px`;
-        spine.style.width = `${book.width}px`;
+        // Calculate dynamic book height based on title length
+        const titleLen = book.title.length;
+        const dynamicHeight = Math.max(250, Math.min(335, 160 + titleLen * 11));
+        spine.style.height = `${dynamicHeight}px`;
+        spine.style.width = `${book.width || 44}px`;
         spine.style.backgroundColor = book.color;
 
         const ribs = document.createElement('div');
@@ -1770,6 +1875,10 @@
 
         const titleEl = document.createElement('div');
         titleEl.className = 'spine-title';
+        if (titleLen > 11) {
+          titleEl.style.fontSize = '0.74rem';
+          titleEl.style.letterSpacing = '0.6px';
+        }
         titleEl.innerText = book.title;
         textContainer.appendChild(titleEl);
 
@@ -1803,50 +1912,26 @@
           spine.classList.remove('dragging');
           this.draggedBookId = null;
           this.draggedFrom = null;
+          this.hideShelfInsertionGuide();
         });
-
-        // Hover Insertion Visual Guide
-        if (source === 'shelf') {
-          spine.addEventListener('mousemove', (e) => {
-            if (this.selectedBookId) {
-              const rect = spine.getBoundingClientRect();
-              const isLeftHalf = (e.clientX - rect.left) < (rect.width / 2);
-              if (isLeftHalf) {
-                spine.classList.add('insert-target-before');
-                spine.classList.remove('insert-target-after');
-              } else {
-                spine.classList.add('insert-target-after');
-                spine.classList.remove('insert-target-before');
-              }
-            }
-          });
-
-          spine.addEventListener('mouseleave', () => {
-            spine.classList.remove('insert-target-before', 'insert-target-after');
-          });
-        }
 
         // Click Handler
         spine.addEventListener('click', (e) => {
-          e.stopPropagation();
-
-          if (this.selectedBookId) {
-            if (this.selectedBookId === book.id) {
-              this.clearSelection();
-            } else if (source === 'shelf') {
-              const rect = spine.getBoundingClientRect();
-              const isLeftHalf = (e.clientX - rect.left) < (rect.width / 2);
-              const currentBookIdx = this.placedBooks.findIndex(b => b.id === book.id);
-              const targetIdx = isLeftHalf ? currentBookIdx : currentBookIdx + 1;
-
-              this.insertBookIntoShelf(this.selectedBookId, targetIdx >= 0 ? targetIdx : 0);
-              this.clearSelection();
-            } else {
-              this.selectBook(book.id, source);
-            }
-          } else {
+          // If no book is currently selected, select this book
+          if (!this.selectedBookId) {
+            e.stopPropagation();
+            this.selectBook(book.id, source);
+          } else if (this.selectedBookId === book.id) {
+            // Clicking the selected book cancels selection
+            e.stopPropagation();
+            this.clearSelection();
+            this.hideShelfInsertionGuide();
+          } else if (source === 'tray') {
+            // Clicking another book in the tray switches selection
+            e.stopPropagation();
             this.selectBook(book.id, source);
           }
+          // If source === 'shelf' and a book is selected, let event bubble to singleShelfRow to insert at exact position!
         });
 
         // Double Click to quickly return from shelf to tray
@@ -1895,42 +1980,8 @@
       renderShelf() {
         this.shelfBooksContainer.innerHTML = '';
 
-        this.placedBooks.forEach((book, bookIdx) => {
+        this.placedBooks.forEach((book) => {
           const el = this.createBookSpineElement(book, 'shelf');
-
-          // Reorder on shelf by drag
-          el.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            const rect = el.getBoundingClientRect();
-            const isLeftHalf = (e.clientX - rect.left) < (rect.width / 2);
-            if (isLeftHalf) {
-              el.classList.add('insert-target-before');
-              el.classList.remove('insert-target-after');
-            } else {
-              el.classList.add('insert-target-after');
-              el.classList.remove('insert-target-before');
-            }
-          });
-
-          el.addEventListener('dragleave', () => {
-            el.classList.remove('insert-target-before', 'insert-target-after');
-          });
-
-          el.addEventListener('drop', (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            el.classList.remove('insert-target-before', 'insert-target-after');
-            const draggedId = parseInt(e.dataTransfer.getData('text/plain'), 10);
-            if (draggedId) {
-              const rect = el.getBoundingClientRect();
-              const isLeftHalf = (e.clientX - rect.left) < (rect.width / 2);
-              const targetIdx = isLeftHalf ? bookIdx : bookIdx + 1;
-              this.insertBookIntoShelf(draggedId, targetIdx);
-              this.clearSelection();
-            }
-          });
-
           this.shelfBooksContainer.appendChild(el);
         });
 
@@ -1943,33 +1994,59 @@
       }
 
       setupSingleShelfHandler() {
-        // Drag Over & Drop on Shelf
+        // Mouse move over shelf when a book is selected
+        this.singleShelfRow.addEventListener('mousemove', (e) => {
+          if (this.selectedBookId) {
+            this.updateShelfInsertionGuide(e.clientX);
+          }
+        });
+
+        this.singleShelfRow.addEventListener('mouseleave', () => {
+          this.hideShelfInsertionGuide();
+        });
+
+        // Drag Over & Drop on Shelf (Generous hit-testing: works anywhere on the shelf row or between books)
         this.singleShelfRow.addEventListener('dragover', (e) => {
           e.preventDefault();
           e.dataTransfer.dropEffect = 'move';
           this.singleShelfRow.classList.add('drag-over');
+          this.updateShelfInsertionGuide(e.clientX);
         });
 
-        this.singleShelfRow.addEventListener('dragleave', () => {
-          this.singleShelfRow.classList.remove('drag-over');
+        this.singleShelfRow.addEventListener('dragleave', (e) => {
+          const rect = this.singleShelfRow.getBoundingClientRect();
+          if (e.clientX < rect.left || e.clientX > rect.right || e.clientY < rect.top || e.clientY > rect.bottom) {
+            this.singleShelfRow.classList.remove('drag-over');
+            this.hideShelfInsertionGuide();
+          }
         });
 
         this.singleShelfRow.addEventListener('drop', (e) => {
           e.preventDefault();
           this.singleShelfRow.classList.remove('drag-over');
-          const bookId = parseInt(e.dataTransfer.getData('text/plain'), 10);
-          if (bookId) {
-            this.placeBookToEndOfShelf(bookId);
+          const draggedId = parseInt(e.dataTransfer.getData('text/plain'), 10) || this.draggedBookId;
+          if (draggedId) {
+            const { targetIdx } = this.calculateShelfInsertion(e.clientX);
+            this.insertBookIntoShelf(draggedId, targetIdx);
             this.clearSelection();
           }
+          this.hideShelfInsertionGuide();
         });
 
-        // Click on Shelf Row background -> Append to end of shelf
+        // Click on Shelf Row / Gap / Book to insert selected book
         this.singleShelfRow.addEventListener('click', (e) => {
-          if (e.target.closest('.book-spine')) return;
           if (this.selectedBookId) {
-            this.placeBookToEndOfShelf(this.selectedBookId);
+            const clickedSpine = e.target.closest('.book-spine');
+            if (clickedSpine && parseInt(clickedSpine.dataset.bookId, 10) === this.selectedBookId) {
+              this.clearSelection();
+              this.hideShelfInsertionGuide();
+              return;
+            }
+
+            const { targetIdx } = this.calculateShelfInsertion(e.clientX);
+            this.insertBookIntoShelf(this.selectedBookId, targetIdx);
             this.clearSelection();
+            this.hideShelfInsertionGuide();
           }
         });
       }
